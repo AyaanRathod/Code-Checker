@@ -1,5 +1,3 @@
-# Code-Checker
-
 # Academic Integrity Code Submission Checker
 
 **Course:** COSC 4P02  
