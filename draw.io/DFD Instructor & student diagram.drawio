@@ -1,0 +1,130 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36" version="29.3.7">
+  <diagram name="Page-1" id="UMUrHXwvn4B21O1tPC85">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="ELlx3riyi9XQHsF98PJU-36" parent="1" style="group;whiteSpace=wrap;html=1;container=1;collapsible=0;recursiveResize=0;" value="" vertex="1">
+          <mxGeometry height="680" width="1020" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-37" parent="ELlx3riyi9XQHsF98PJU-36" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#0066CC;strokeWidth=2;" value="" vertex="1">
+          <mxGeometry height="680" width="1020" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-38" parent="ELlx3riyi9XQHsF98PJU-36" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=20;fontColor=#000000;" value="System Level 1 DFD: Combined Student &amp;amp; Instructor Workflow" vertex="1">
+          <mxGeometry height="40" width="1020" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-39" parent="ELlx3riyi9XQHsF98PJU-36" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=14;" value="Student" vertex="1">
+          <mxGeometry height="60" width="120" x="240" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-40" parent="ELlx3riyi9XQHsF98PJU-36" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=14;" value="Instructor" vertex="1">
+          <mxGeometry height="60" width="120" x="720" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-41" parent="ELlx3riyi9XQHsF98PJU-36" style="shape=mxgraph.flowchart.terminator;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;" value="Time Trigger" vertex="1">
+          <mxGeometry height="40" width="100" x="40" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-42" parent="ELlx3riyi9XQHsF98PJU-36" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fillColor=#ffffff;strokeColor=#0066CC;strokeWidth=2;fontStyle=1" value="1.0&lt;br&gt;Validate &amp; &lt;br&gt;Receive Upload" vertex="1">
+          <mxGeometry height="80" width="140" x="240" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-43" parent="ELlx3riyi9XQHsF98PJU-36" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fillColor=#ffffff;strokeColor=#0066CC;strokeWidth=2;fontStyle=1" value="3.0&lt;br&gt;Configure &lt;br&gt;Assignment &amp; &lt;br&gt;Boilerplate" vertex="1">
+          <mxGeometry height="80" width="140" x="600" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-44" parent="ELlx3riyi9XQHsF98PJU-36" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fillColor=#ffffff;strokeColor=#0066CC;strokeWidth=2;fontStyle=1" value="6.0&lt;br&gt;Automated 30-Day&lt;br&gt;PII Purge" vertex="1">
+          <mxGeometry height="80" width="140" x="30" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-45" parent="ELlx3riyi9XQHsF98PJU-36" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fillColor=#ffffff;strokeColor=#0066CC;strokeWidth=2;fontStyle=1" value="2.0&lt;br&gt;Sanitize, Split &amp;&lt;br&gt;Store Submission" vertex="1">
+          <mxGeometry height="80" width="140" x="240" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-46" parent="ELlx3riyi9XQHsF98PJU-36" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fillColor=#ffffff;strokeColor=#0066CC;strokeWidth=2;fontStyle=1" value="4.0&lt;br&gt;Perform Similarity&lt;br&gt;Analysis Engine" vertex="1">
+          <mxGeometry height="80" width="140" x="680" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-47" parent="ELlx3riyi9XQHsF98PJU-36" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fillColor=#ffffff;strokeColor=#0066CC;strokeWidth=2;fontStyle=1" value="5.0&lt;br&gt;Generate Dashboard&lt;br&gt;&amp; Manage Flags" vertex="1">
+          <mxGeometry height="80" width="140" x="860" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-48" parent="ELlx3riyi9XQHsF98PJU-36" style="shape=partialRectangle;right=0;whiteSpace=wrap;html=1;top=1;bottom=1;left=1;fillColor=#ffffff;strokeColor=#0066CC;align=center;verticalAlign=middle;" value="D1: Assignments &amp;&lt;br&gt;Boilerplate&lt;br&gt;(PostgreSQL)" vertex="1">
+          <mxGeometry height="60" width="140" x="460" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-49" parent="ELlx3riyi9XQHsF98PJU-36" style="shape=partialRectangle;right=0;whiteSpace=wrap;html=1;top=1;bottom=1;left=1;fillColor=#ffffff;strokeColor=#0066CC;align=center;verticalAlign=middle;" value="D2: Submissions&lt;br&gt;(PII Metadata)&lt;br&gt;(PostgreSQL)" vertex="1">
+          <mxGeometry height="60" width="160" x="140" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-50" parent="ELlx3riyi9XQHsF98PJU-36" style="shape=partialRectangle;right=0;whiteSpace=wrap;html=1;top=1;bottom=1;left=1;fillColor=#ffffff;strokeColor=#0066CC;align=center;verticalAlign=middle;" value="D3: Code_Files&lt;br&gt;(Anonymized Blob Paths)&lt;br&gt;(PostgreSQL)" vertex="1">
+          <mxGeometry height="60" width="170" x="370" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-51" parent="ELlx3riyi9XQHsF98PJU-36" style="shape=partialRectangle;right=0;whiteSpace=wrap;html=1;top=1;bottom=1;left=1;fillColor=#ffffff;strokeColor=#0066CC;align=center;verticalAlign=middle;" value="D4: File Object Storage&lt;br&gt;(S3/Blob)" vertex="1">
+          <mxGeometry height="60" width="160" x="580" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-52" parent="ELlx3riyi9XQHsF98PJU-36" style="shape=partialRectangle;right=0;whiteSpace=wrap;html=1;top=1;bottom=1;left=1;fillColor=#ffffff;strokeColor=#0066CC;align=center;verticalAlign=middle;" value="D5: Similarity_Results &amp;&lt;br&gt;Flags (PostgreSQL)" vertex="1">
+          <mxGeometry height="60" width="160" x="780" y="560" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-53" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-39" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ELlx3riyi9XQHsF98PJU-42" value="Raw Submission&lt;br&gt;(Key, File, Name, ID)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-54" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-42" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ELlx3riyi9XQHsF98PJU-45" value="Validated&lt;br&gt;Submission Data">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-55" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-48" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.75;entryDx=0;entryDy=0;exitX=0;exitY=0;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-42" value="Key&lt;br&gt;Validation&lt;br&gt;Rules">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="430" y="360" />
+              <mxPoint x="430" y="260" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-56" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-40" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ELlx3riyi9XQHsF98PJU-43" value="Assignment&lt;br&gt;Config">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-57" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-43" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.75;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-48" value="Insert/Update&lt;br&gt;Config">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-58" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-40" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-46" value="Run Analysis&lt;br&gt;Trigger">
+          <mxGeometry relative="1" x="0.3846" y="30" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-59" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-40" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-47" value="View Dashboard /&lt;br&gt;Flag Request">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-60" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-41" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="ELlx3riyi9XQHsF98PJU-44" value="Daily Trigger">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-61" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-44" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.25;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-49" value="Update PII to&lt;br&gt;NULL...">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-62" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-45" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.75;entryY=0;entryDx=0;entryDy=0;exitX=0.25;exitY=1;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-49" value="Encrypted&lt;br&gt;PII...">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-63" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-45" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.25;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-50" value="Anonymized&lt;br&gt;File Metadata">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-64" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-45" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.25;entryY=0;entryDx=0;entryDy=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-51" value="Physical File&lt;br&gt;Blob...">
+          <mxGeometry relative="1" x="-0.0633" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-65" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-48" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-46" value="Analysis&lt;br&gt;Rules">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-66" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-50" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.25;entryY=1;entryDx=0;entryDy=0;exitX=0.75;exitY=0;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-46" value="File Paths&lt;br&gt;List">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-67" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-51" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.75;exitY=0;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-46" value="Read File&lt;br&gt;Content...">
+          <mxGeometry relative="1" x="0.0588" y="-20" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-68" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-46" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.25;entryY=0;entryDx=0;entryDy=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-52" value="Insert&lt;br&gt;Comparison&lt;br&gt;Results">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-69" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-52" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.25;entryY=1;entryDx=0;entryDy=0;exitX=0.75;exitY=0;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-47" value="Read&lt;br&gt;Scores &amp;&lt;br&gt;Flags">
+          <mxGeometry relative="1" x="0.04" y="5" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ELlx3riyi9XQHsF98PJU-70" edge="1" parent="ELlx3riyi9XQHsF98PJU-36" source="ELlx3riyi9XQHsF98PJU-47" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.9;entryY=0;entryDx=0;entryDy=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;" target="ELlx3riyi9XQHsF98PJU-52" value="Update&lt;br&gt;Flag/Note">
+          <mxGeometry relative="1" x="-0.1925" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
