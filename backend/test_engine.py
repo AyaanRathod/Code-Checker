@@ -97,7 +97,7 @@ def run_tests() -> Dict[str, Any]:
     results.append(evaluate("Test 1: Plagiarism", "Verifying Comment Stripping & Normalization (Identical Logic). Expect High Score.", tc1_source, tc1_target, 80.0, 100.0))
     results.append(evaluate("Test 2: Original", "Completely different logic. Expect Low Score.", tc2_source, tc2_target, 0.0, 30.0))
     results.append(evaluate("Test 3: Boilerplate", "Shared template but different logic, using boilerplate removal. Expect Low Score.", tc3_source, tc3_target, 0.0, 40.0, tc3_boiler))
-
+    # Summarize results
     for r in results:
         if r["passed"]:
             passed_tests += 1
