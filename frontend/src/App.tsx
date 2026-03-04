@@ -286,72 +286,11 @@ function App() {
             >
               {isLoading ? 'Analyzing...' : 'Run Similarity Analysis'}
             </button>
-            <button 
-              onClick={handleRunTestTask} 
-              disabled={isTestRunLoading}
-              style={{...(isTestRunLoading ? styles.buttonDisabled : styles.button), marginLeft: '15px', backgroundColor: '#388e3c'}}
-            >
-              {isTestRunLoading ? 'Running Tests...' : 'Run Automated Test Suite'}
-            </button>
           </div>
           
           {/* Error Display */}
           {error && <div style={styles.errorBox}>{error}</div>}
         </div>
-
-        {/* --- QA Test Report Section --- */}
-        {showTestReport && testReport && (
-            <div style={{ ...styles.card, borderLeft: testReport.status === 'passed' ? '5px solid #4caf50' : '5px solid #f44336' }}>
-              <h2 style={{ ...styles.sectionTitle, color: '#2e7d32', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>🧪 QA Automated Test Report</span>
-                <span style={{ fontSize: '1rem', color: '#555', fontWeight: 'normal' }}>
-                   Status: <strong style={{ color: testReport.status === 'passed' ? '#4caf50' : '#f44336' }}>{testReport.status.toUpperCase()}</strong> 
-                   ({testReport.passed_count}/{testReport.total_count} passing)
-                </span>
-              </h2>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {testReport.results.map((r, idx) => (
-                  <div key={idx} style={{ 
-                    padding: '15px', 
-                    backgroundColor: '#fafafa', 
-                    borderRadius: '6px', 
-                    border: '1px solid #eee',
-                    borderLeft: `4px solid ${r.passed ? '#4caf50' : '#f44336'}`
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <h4 style={{ margin: 0, color: '#333' }}>{r.name}</h4>
-                      <span style={{ 
-                        padding: '2px 8px', 
-                        borderRadius: '4px', 
-                        backgroundColor: r.passed ? '#e8f5e9' : '#ffebee',
-                        color: r.passed ? '#2e7d32' : '#c62828',
-                        fontSize: '0.85rem',
-                        fontWeight: 'bold'
-                      }}>
-                        {r.passed ? 'PASSED' : 'FAILED'}
-                      </span>
-                    </div>
-                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '0.95rem' }}>{r.description}</p>
-                    <div style={{ display: 'flex', gap: '20px', fontSize: '0.9rem' }}>
-                      <span style={{ color: '#555' }}><strong>Expected:</strong> {r.expected}</span>
-                      <span style={{ color: '#333' }}><strong>Actual Score:</strong> {r.score.toFixed(2)}%</span>
-                      {r.error && <span style={{ color: '#d32f2f' }}><strong>Error:</strong> {r.error}</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-                <button 
-                  onClick={handleDownloadTestReport} 
-                  style={{ ...styles.button, backgroundColor: '#2e7d32', fontSize: '0.95rem', padding: '8px 20px' }}
-                >
-                  Download Test Results (.txt)
-                </button>
-              </div>
-            </div>
-        )}
 
         {/* --- Results Section (Conditional Rendering) --- */}
         {/* Only show this section if we have a valid similarity score */}
