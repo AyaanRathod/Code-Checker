@@ -11,9 +11,20 @@ Key Concepts:
 -   **Intersection**: The set of hashes that appear in BOTH documents.
 -   **Containment Metric**: A similarity measure ideal for detecting if a small document
     is contained within a larger one (e.g., copying a helper function).
+
+--- TASK FOR IMPLEMENTOR ---
+Your job is to implement the two functions below:
+    1. remove_boilerplate()
+    2. calculate_similarity()
+
+Do NOT change the function signatures or return types — the rest of the
+backend (main.py, test_engine.py) depends on them exactly as defined.
+
+Run `python test_engine.py` from the backend folder to validate your work.
 """
 
 from typing import Set, List, Dict, Any, Tuple
+
 
 def remove_boilerplate(student_fingerprint: List[Dict[str, Any]], boilerplate_hashes: Set[int]) -> List[Dict[str, Any]]:
     """
@@ -22,107 +33,89 @@ def remove_boilerplate(student_fingerprint: List[Dict[str, Any]], boilerplate_ha
     Boilerplate code includes starter code, provided libraries, or template files
     given by the instructor. We must exclude these to avoid false positives.
 
-    We filter the student's list of fingerprint objects, keeping only those
-    whose hash is NOT in the boilerplate set.
+    Filter the student's list of fingerprint objects, keeping only those
+    whose 'hash' key is NOT present in the boilerplate_hashes set.
 
     Args:
         student_fingerprint (List[Dict]): The list of fingerprint objects from the student.
-        boilerplate_hashes (Set[int]): The set of hashes from the provided starter code.
+            Each dict has the shape: {"hash": int, "start_idx": int, "end_idx": int}
+        boilerplate_hashes (Set[int]): The set of integer hashes from the provided
+            starter/template code.
 
     Returns:
-        List[Dict]: A new list containing only the unique fingerprint objects.
+        List[Dict]: A new list containing only the fingerprint objects whose hash
+            does NOT appear in boilerplate_hashes. The order and structure of the
+            dicts must be preserved.
+
+    Example:
+        student_fingerprint = [
+            {"hash": 101, "start_idx": 0,  "end_idx": 10},   # boilerplate — exclude
+            {"hash": 202, "start_idx": 11, "end_idx": 25},   # original — keep
+            {"hash": 303, "start_idx": 26, "end_idx": 40},   # original — keep
+        ]
+        boilerplate_hashes = {101, 102}
+
+        result = remove_boilerplate(student_fingerprint, boilerplate_hashes)
+        # Expected: [{"hash": 202, ...}, {"hash": 303, ...}]
     """
-    unique_fingerprints = [
-        fp for fp in student_fingerprint 
-        if fp['hash'] not in boilerplate_hashes
-    ]
-    
-    return unique_fingerprints
+    raise NotImplementedError("TODO: implement remove_boilerplate()")
+
 
 def calculate_similarity(fingerprint_a: List[Dict[str, Any]], fingerprint_b: List[Dict[str, Any]]) -> Tuple[float, List[Dict], List[Dict]]:
-    # 1. Handle Edge Case: Empty fingerprints
-    if not fingerprint_a or not fingerprint_b:
-        return 0.0, [], []
+    """
+    Compares two fingerprint lists and returns a similarity score plus match ranges.
 
-    # 2. Extract just the hashes into sets to perform the math
-    hashes_a = {fp['hash'] for fp in fingerprint_a}
-    hashes_b = {fp['hash'] for fp in fingerprint_b}
+    Uses the Containment Metric:
+        score = (size of intersection / size of smaller fingerprint set) * 100.0
 
-    # 3. Calculate Intersection (which hashes match?)
-    matched_hashes = hashes_a & hashes_b
-    intersection_size = len(matched_hashes)
+    The Containment Metric is preferred over Jaccard because it handles cases where
+    one document is much smaller than the other (e.g., a student copied one function
+    from a large codebase — the intersection is small relative to the union, but
+    large relative to the smaller doc).
 
-    # 4. Determine the size of the smaller fingerprint
-    min_size = min(len(hashes_a), len(hashes_b))
+    Implementation steps:
+        1. Handle the edge case: if either fingerprint list is empty, return
+           (0.0, [], []) immediately.
+        2. Extract the integer hashes from each list into two Python sets.
+        3. Compute the intersection (hashes that appear in BOTH sets).
+        4. Compute the containment score using the formula above.
+        5. Build ranges_a: for every fingerprint object in fingerprint_a whose
+           'hash' is in the intersection, record {"start": start_idx, "end": end_idx}.
+        6. Build ranges_b: same as above but for fingerprint_b.
+        7. Return (similarity_score, ranges_a, ranges_b).
 
-    # 5. Calculate Ratio (Similarity Score)
-    similarity_score = 0.0
-    if min_size > 0:
-        similarity_score = (intersection_size / min_size) * 100.0
+    Args:
+        fingerprint_a (List[Dict]): Fingerprint list for document A.
+            Each dict: {"hash": int, "start_idx": int, "end_idx": int}
+        fingerprint_b (List[Dict]): Fingerprint list for document B.
+            Same structure as fingerprint_a.
 
-    # 6. Build the lists of match ranges for the frontend
-    # We loop through the original dictionaries and grab the start/end
-    # indices only if their hash is in our matched_hashes set.
-    ranges_a = [
-        {"start": fp["start_idx"], "end": fp["end_idx"]} 
-        for fp in fingerprint_a if fp['hash'] in matched_hashes
-    ]
-    
-    ranges_b = [
-        {"start": fp["start_idx"], "end": fp["end_idx"]} 
-        for fp in fingerprint_b if fp['hash'] in matched_hashes
-    ]
+    Returns:
+        Tuple containing:
+            - similarity_score (float): Value between 0.0 and 100.0.
+            - ranges_a (List[Dict]): Matched regions in document A.
+                Each dict: {"start": int, "end": int}
+            - ranges_b (List[Dict]): Matched regions in document B.
+                Same structure as ranges_a.
 
-    return similarity_score, ranges_a, ranges_b
+    Example:
+        fingerprint_a = [
+            {"hash": 11, "start_idx": 0,  "end_idx": 5},
+            {"hash": 22, "start_idx": 6,  "end_idx": 12},
+            {"hash": 33, "start_idx": 13, "end_idx": 20},
+        ]
+        fingerprint_b = [
+            {"hash": 11, "start_idx": 0,  "end_idx": 5},
+            {"hash": 22, "start_idx": 6,  "end_idx": 12},
+            {"hash": 99, "start_idx": 13, "end_idx": 20},
+        ]
+        # intersection = {11, 22}  (2 hashes)
+        # min_size = 3
+        # score = (2 / 3) * 100 = 66.67
 
-
-if __name__ == "__main__":
-    # --- Test Data Setup ---
-    # Let's simulate hashes as simple integers for clarity.
-    
-    # Boilerplate: Code given to everyone (e.g., "import os", "def main():")
-    boilerplate_hashes = {101, 102, 103}
-    
-    # Student A: Wrote some original code but kept boilerplate
-    # Hashes {101, 102} are boilerplate. {201, 202} are original.
-    student_a_hashes = {101, 102, 201, 202}
-    
-    # Student B: Copied Student A's original code completely
-    # Hashes {101, 102} are boilerplate. {201, 202} are copied.
-    student_b_hashes = {101, 102, 201, 202, 301} # Added one extra line {301}
-
-    print("--- Scorer Module Test ---")
-    print(f"Boilerplate Hashes: {boilerplate_hashes}")
-    print(f"Student A Raw: {student_a_hashes}")
-    print(f"Student B Raw: {student_b_hashes}")
-
-    # --- Step 1: Boilerplate Exclusion ---
-    print("\n[Step 1] Removing Boilerplate...")
-    
-    clean_a = remove_boilerplate(student_a_hashes, boilerplate_hashes)
-    clean_b = remove_boilerplate(student_b_hashes, boilerplate_hashes)
-    
-    print(f"Student A Cleaned: {clean_a} (Removed {101, 102})")
-    print(f"Student B Cleaned: {clean_b} (Removed {101, 102})")
-
-    # --- Step 2: Similarity Calculation ---
-    print("\n[Step 2] Calculating Similarity (Containment Metric)...")
-    
-    # Compare Cleaned A vs Cleaned B
-    # Clean A: {201, 202}
-    # Clean B: {201, 202, 301}
-    # Intersection: {201, 202} (Size 2)
-    # Smaller Set: Clean A (Size 2)
-    # Score: 2 / 2 = 1.0 (100%)
-    
-    score = calculate_similarity(clean_a, clean_b)
-    
-    print(f"Intersection: {clean_a & clean_b}")
-    print(f"Size of Smaller Set: {min(len(clean_a), len(clean_b))}")
-    print(f"Similarity Score: {score:.2f}%")
-    
-    # --- Step 3: Edge Case Test ---
-    print("\n[Step 3] Edge Case: Empty Set")
-    empty_set = set()
-    score_empty = calculate_similarity(clean_a, empty_set)
-    print(f"Similarity with empty set: {score_empty:.2f}%")
+        score, ra, rb = calculate_similarity(fingerprint_a, fingerprint_b)
+        # score  -> 66.67
+        # ra     -> [{"start": 0, "end": 5}, {"start": 6, "end": 12}]
+        # rb     -> [{"start": 0, "end": 5}, {"start": 6, "end": 12}]
+    """
+    raise NotImplementedError("TODO: implement calculate_similarity()")
