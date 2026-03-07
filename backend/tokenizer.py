@@ -10,17 +10,46 @@ Key Features:
 3.  **Normalization**: Replaces user-defined identifiers with placeholders ('ID')
     and literals with placeholders ('LIT', 'STR') to prevent simple renaming cheats.
     Keeps language keywords and operators intact to preserve logic structure.
+
+IMPLEMENTATION INSTRUCTIONS:
+============================
+The developer implementing this module should:
+
+1. Implement `get_lexer_for_language(language: str)` function
+   - Accept language parameter: 'c', 'cpp', 'c++', 'java'
+   - Return appropriate Pygments lexer for the language
+   - Raise ValueError for unsupported languages
+
+2. Implement `normalize_source_code(source_code: str, language: str)` function
+   - Tokenize using Pygments lexer
+   - Filter out whitespace, newlines, and comments
+   - Normalize identifiers to 'ID' (except built-ins)
+   - Normalize numeric literals to 'LIT'
+   - Normalize string literals to 'STR'
+   - Keep keywords, operators, and punctuation intact
+   - Return list of dicts with keys: 'token', 'start_idx', 'end_idx'
+
+3. Use Pygments library for lexical analysis
+   - Reference: https://pygments.org/
+   - Token types: token.String, token.Number, token.Name, token.Keyword, etc.
+
+4. Include comprehensive error handling and edge cases
+5. Add unit tests to validate tokenization for C, C++, and Java code samples
+6. Test with the sample code provided in the example section
 """
 
 from typing import List, Dict, Any
-from pygments import lexers, token
-from pygments.lexers import get_lexer_by_name, guess_lexer
-from pygments.util import ClassNotFound
+
+# TODO: Add required imports
+# from pygments import lexers, token
+# from pygments.lexers import get_lexer_by_name
+# from pygments.util import ClassNotFound
 
 # Constants for Normalization
 PLACEHOLDER_ID = "ID"       # For user-defined variables/functions
 PLACEHOLDER_STR = "STR"     # For string literals
 PLACEHOLDER_LIT = "LIT"     # For numeric literals
+
 
 def get_lexer_for_language(language: str):
     """
@@ -35,21 +64,9 @@ def get_lexer_for_language(language: str):
     Raises:
         ValueError: If the language is not supported or unknown.
     """
-    # Normalize language string
-    lang = language.lower().strip()
-    
-    try:
-        if lang == 'c':
-            return lexers.get_lexer_by_name("c")
-        elif lang in ['cpp', 'c++']:
-            return lexers.get_lexer_by_name("cpp")
-        elif lang == 'java':
-            return lexers.get_lexer_by_name("java")
-        else:
-            # Fallback: try to find by name, or raise error if strictly limited to C/C++/Java
-            return lexers.get_lexer_by_name(lang)
-    except ClassNotFound:
-        raise ValueError(f"Unsupported language: {language}")
+    # TODO: Implement lexer retrieval logic
+    raise NotImplementedError("get_lexer_for_language() must be implemented")
+
 
 def normalize_source_code(source_code: str, language: str) -> List[Dict[str, Any]]:
     """
@@ -68,78 +85,21 @@ def normalize_source_code(source_code: str, language: str) -> List[Dict[str, Any
 
     Returns:
         List[Dict]: A list of dicts: {'token': str, 'start_idx': int, 'end_idx': int}
+
+    Example:
+        >>> code = 'int myCount = 0; // Initialize count'
+        >>> tokens = normalize_source_code(code, 'cpp')
+        >>> # Expected output includes normalized tokens with indices
     """
-    if not source_code:
-        return []
+    # TODO: Implement normalization logic
+    raise NotImplementedError("normalize_source_code() must be implemented")
 
-    try:
-        lexer = get_lexer_for_language(language)
-    except ValueError as e:
-        print(f"Error: {e}")
-        return []
-
-    normalized_tokens = []
-
-    # lexer.get_tokens_unprocessed returns (index, token_type, value)
-    # index: The starting position of the token in the raw string.
-    for index, token_type, value in lexer.get_tokens_unprocessed(source_code):
-        
-        end_index = index + len(value)
-        
-        # 1. Filter: Skip Whitespace and Newlines
-        if token_type in token.Text:
-            continue
-
-        # 2. Filter: Skip Comments (Single-line, Multi-line, and Preprocessor directives)
-        # Note: We skip Preprocessor (#include, #define) to focus on algorithmic logic,
-        # as these are often boilerplate in C/C++.
-        if token_type in token.Comment:
-            continue
-
-        # 3. Normalization Logic
-        normalized_val = value
-        
-        # Handle String Literals
-        if token_type in token.String:
-            normalized_val = PLACEHOLDER_STR
-            
-        # Handle Numeric Literals
-        elif token_type in token.Number:
-            normalized_val = PLACEHOLDER_LIT
-            
-        # Handle Identifiers (Variable names, Function names)
-        elif token_type in token.Name:
-            # Exception: Keep Built-in names (e.g., 'printf', 'System', 'main')
-            # This helps distinguish standard library usage from user logic.
-            if token_type in token.Name.Builtin:
-                normalized_val = value
-            else:
-                # Replace user-defined names with generic ID
-                normalized_val = PLACEHOLDER_ID
-        
-        # Handle Keywords, Operators, and Punctuation
-        # We keep these as-is to preserve the structural logic of the program.
-        # e.g., 'if', 'while', '+', '=', '{', '}'
-        elif token_type in token.Keyword or \
-             token_type in token.Operator or \
-             token_type in token.Punctuation:
-            normalized_val = value
-            
-        # Fallback: If a token doesn't match above, we usually keep it or ignore it.
-        # For safety in a parser, we append it if it's not purely whitespace/error.
-        elif not value.isspace():
-            normalized_val = value
-        else:
-            # Skip if it fell through and is just whitespace
-            continue
-            
-        normalized_tokens.append({"token": normalized_val, "start_idx": index, "end_idx": end_index})
-
-    return normalized_tokens
 
 # Example Usage (for testing purposes)
 if __name__ == "__main__":
+    # TODO: Implement and test with sample code
     sample_code = 'int myCount = 0; // Initialize count'
-    tokens = normalize_source_code(sample_code, 'cpp')
-    print(f"Input: {sample_code}")
-    print(f"Output: {tokens}")
+    # Expected: Tokens with 'int', 'ID', '=', 'LIT', ';' (normalized)
+    # tokens = normalize_source_code(sample_code, 'cpp')
+    # print(f"Input: {sample_code}")
+    # print(f"Output: {tokens}")
