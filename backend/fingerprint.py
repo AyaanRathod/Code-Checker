@@ -133,7 +133,7 @@ def winnowing_algorithm(hashes: List[Dict[str, Any]], window_size: int = DEFAULT
     # Total windows = N - w + 1
     for i in range(len(hashes) - window_size + 1):
         # Define the current window slice
-        window = hashes[i : i + window_size]
+        window = hashes[i : i + window_size] 
         
         # Find minimum in the current window.
         # We need the value AND its index relative to the window to handle the "right-most" rule.
