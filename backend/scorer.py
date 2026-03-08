@@ -75,6 +75,20 @@ def calculate_similarity(fingerprint_a: List[Dict[str, Any]], fingerprint_b: Lis
 
     return similarity_score, ranges_a, ranges_b
 
+def submission_scoring(boilerplate_hashes: Set[int], fingerprint_a: List[Dict[str, Any]], fingerprint_b: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    # Remove the boilerplate
+    clear_a = remove_boilerplate(fingerprint_a, boilerplate_hashes)
+    clear_b = remove_boilerplate(fingerprint_b, boilerplate_hashes)
+
+    # Calculate the similarities of the submissions
+    similarity_score, ranges_a, ranges_b = calculate_similarity(clear_a, clear_b)
+
+    similarity_result = {}
+    similarity_result['similarity score'] = similarity_score
+    similarity_result['ranges a'] = ranges_a
+    similarity_result['ranges b'] = ranges_b
+
+    return similarity_result
 
 if __name__ == "__main__":
     # --- Test Data Setup ---
