@@ -205,3 +205,273 @@ body {
     width: 100%;
   }
 }
+
+  .create-content {
+  max-width: 1280px;
+  padding-top: 56px;
+}
+
+.assignment-card {
+  width: 100%;
+  max-width: 1200px;
+  background: #efefef;
+  padding: 28px 40px 34px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+}
+
+.create-title {
+  text-align: center;
+  color: #111;
+  font-size: 38px;
+  font-weight: 700;
+  margin-bottom: 52px;
+}
+
+.create-label {
+  display: block;
+  font-size: 22px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.form-group {
+  margin-bottom: 44px;
+}
+
+.text-input {
+  width: 100%;
+  max-width: 1000px;
+  height: 50px;
+  border: none;
+  background: #faf6f6;
+  padding: 0 18px;
+  font-size: 16px;
+  color: #555;
+  outline: none;
+  border-radius: 3px;
+}
+
+.text-input::placeholder {
+  color: #9d9d9d;
+  font-weight: 600;
+}
+
+.create-upload-box {
+  width: 100%;
+  max-width: 560px;
+  min-height: 146px;
+  border: 2px dashed #767676;
+  background: #cfefff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.create-upload-box:focus-within {
+  outline: 3px solid #1c5fd4;
+  outline-offset: 2px;
+}
+
+.create-key-group {
+  margin-bottom: 52px;
+}
+
+.button-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-top: 10px;
+}
+
+.cancel-btn,
+.create-btn {
+  width: 240px;
+  height: 50px;
+  border: none;
+  border-radius: 999px;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cancel-btn {
+  background: #c8c8c8;
+  color: #111;
+}
+
+.create-btn {
+  background: #a40000;
+  color: white;
+}
+
+.cancel-btn:hover,
+.create-btn:hover {
+  opacity: 0.96;
+}
+
+@media (max-width: 1000px) {
+  .assignment-card {
+    padding: 24px 20px 28px;
+  }
+
+  .create-title {
+    font-size: 30px;
+    margin-bottom: 36px;
+  }
+
+  .create-upload-box,
+  .text-input {
+    max-width: 100%;
+  }
+
+  .button-row {
+    flex-direction: column;
+  }
+
+  .cancel-btn,
+  .create-btn {
+    width: 100%;
+    max-width: 320px;
+  }
+}
+
+.create-content {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 56px 20px 60px;
+}
+
+.assignment-card {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  background: #efefef;
+  padding: 28px 40px 34px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+}
+
+.create-title {
+  text-align: center;
+  color: #111;
+  font-size: 38px;
+  font-weight: 700;
+  margin-bottom: 52px;
+}
+
+.create-label {
+  display: block;
+  font-size: 22px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.form-group {
+  margin-bottom: 44px;
+}
+
+.text-input {
+  width: 100%;
+  max-width: 1000px;
+  height: 50px;
+  border: none;
+  background: #faf6f6;
+  padding: 0 18px;
+  font-size: 16px;
+  color: #555;
+  outline: none;
+  border-radius: 3px;
+}
+
+.text-input::placeholder {
+  color: #9d9d9d;
+  font-weight: 600;
+}
+
+.create-upload-box {
+  width: 100%;
+  max-width: 560px;
+  min-height: 146px;
+  border: 2px dashed #767676;
+  background: #cfefff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.create-upload-box:focus-within {
+  outline: 3px solid #1c5fd4;
+  outline-offset: 2px;
+}
+
+.create-key-group {
+  margin-bottom: 52px;
+}
+
+.button-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-top: 10px;
+}
+
+.cancel-btn,
+.create-btn {
+  width: 240px;
+  height: 50px;
+  border: none;
+  border-radius: 999px;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cancel-btn {
+  background: #c8c8c8;
+  color: #111;
+}
+
+.create-btn {
+  background: #a40000;
+  color: white;
+}
+
+.cancel-btn:hover,
+.create-btn:hover {
+  opacity: 0.96;
+}
+
+@media (max-width: 1000px) {
+  .assignment-card {
+    padding: 24px 20px 28px;
+  }
+
+  .create-title {
+    font-size: 30px;
+    margin-bottom: 36px;
+  }
+
+  .create-upload-box,
+  .text-input {
+    max-width: 100%;
+  }
+
+  .button-row {
+    flex-direction: column;
+  }
+
+  .cancel-btn,
+  .create-btn {
+    width: 100%;
+    max-width: 320px;
+  }
+}

@@ -57,7 +57,7 @@ services:
 
   # Object Storage (MinIO)
   minio:
-    image: minio/minio:RELEASE.2024-01-16T16-07-38Z.fips
+    image: minio/minio:latest
     container_name: code_checker_minio
     command: server /data --console-address ":9001"
     ports:
