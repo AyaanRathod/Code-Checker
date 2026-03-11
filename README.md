@@ -1,6 +1,7 @@
 # Academic Integrity Code Submission Checker (Code-Checker)
 
 **Course:** COSC 4P02  Group 8
+
 **Project:** Code Submission Similarity Checker for Academic Integrity
 
 ---
