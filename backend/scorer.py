@@ -53,7 +53,7 @@ def calculate_similarity(fingerprint_a: List[Dict[str, Any]], fingerprint_b: Lis
     intersection_size = len(matched_hashes)
 
     # 4. Determine the size of the smaller fingerprint
-    min_size = min(len(hashes_a), len(hashes_b))
+    min_size = len(hashes_a)
 
     # 5. Calculate Ratio (Similarity Score)
     similarity_score = 0.0
