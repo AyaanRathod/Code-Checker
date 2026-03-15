@@ -1,7 +1,7 @@
 """
 Fingerprint Module for Code-Checker (Plagiarism Detection System).
 
-This module implements the Winnowing Algorithm (Schleimer, Wilkerson, and Aiken, 2003).
+This module implements the Winnowing Algorithm.
 It converts a list of normalized tokens into a document fingerprint (a set of hashes).
 
 Concepts:
@@ -68,11 +68,6 @@ def get_stable_hash(text: str) -> int:
     """
     Generates a stable integer hash for a given string.
 
-    Why not python's built-in hash()?
-    Python's hash() uses a random seed per process for security (to prevent collision attacks).
-    This means hash("code") in Run A != hash("code") in Run B.
-    For a database of plagiarism fingerprints, we need consistency forever.
-
     We use SHA-256 and take the last 8 bytes (64 bits) to keep integers manageable
     but sufficiently random to avoid collisions.
 
@@ -86,7 +81,8 @@ def get_stable_hash(text: str) -> int:
     text_bytes = text.encode('utf-8')
     
     # Create SHA-256 hash object
-    sha_signature = hashlib.sha256(text_bytes).hexdigest()
+    # hexdigest converts the bytes into hex string
+    sha_signature = hashlib.sha256(text_bytes).hexdigest() 
     
     # Convert hex string to integer.
     # We don't need the full 256 bits. Let's take the last 16 chars (64 bits).
@@ -185,48 +181,3 @@ def generate_fingerprint(tokens: List[Dict[str, Any]], k: int = DEFAULT_K, windo
     fingerprint_list = winnowing_algorithm(hashes, window_size)
     
     return fingerprint_list
-
-if __name__ == "__main__":
-    # Test Data: A simple sequence of tokens simulating code
-    # "int main() { return 0; }" -> normalized might look like this:
-    dummy_tokens = [
-        {"token": "int", "start_idx": 0, "end_idx": 3},
-        {"token": "main", "start_idx": 4, "end_idx": 8},
-        {"token": "(", "start_idx": 8, "end_idx": 9},
-        {"token": ")", "start_idx": 9, "end_idx": 10},
-        {"token": "{", "start_idx": 11, "end_idx": 12},
-        {"token": "return", "start_idx": 13, "end_idx": 19},
-        {"token": "LIT", "start_idx": 20, "end_idx": 21},
-        {"token": ";", "start_idx": 21, "end_idx": 22},
-        {"token": "}", "start_idx": 23, "end_idx": 24}
-    ]
-    
-    # Use small K and W for demonstration so we actually get output from a short list
-    test_k = 3
-    test_w = 4
-    
-    print(f"--- Fingerprint Module Test ---")
-    print(f"Input Tokens: {dummy_tokens}")
-    
-    # 1. K-grams
-    grams = generate_kgrams(dummy_tokens, test_k)
-    print(f"\n1. Generated {test_k}-grams:")
-    for i, g in enumerate(grams):
-        print(f"   [{i}] {g}")
-        
-    # 2. Hashes
-    hash_vals = [get_stable_hash(g) for g in grams]
-    print(f"\n2. Generated Stable Hashes:")
-    print(f"   {hash_vals}")
-    
-    # 3. Winnowing
-    # Let's trace the windows manually for the user in comments:
-    # Hashes: [H0, H1, H2, H3, H4, H5, H6]
-    # Window 0: [H0, H1, H2, H3] -> Pick min
-    # Window 1: [H1, H2, H3, H4] -> Pick min
-    # ...
-    final_fingerprint = winnowing_algorithm(hash_vals, test_w)
-    
-    print(f"\n3. Final Fingerprint (Selected Hashes):")
-    print(f"   {final_fingerprint}")
-    print(f"--- End Test ---")
