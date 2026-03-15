@@ -136,10 +136,3 @@ def normalize_source_code(source_code: str, language: str) -> List[Dict[str, Any
         normalized_tokens.append({"token": normalized_val, "start_idx": index, "end_idx": end_index})
 
     return normalized_tokens
-
-# Example Usage (for testing purposes)
-if __name__ == "__main__":
-    sample_code = 'int myCount = 0; // Initialize count'
-    tokens = normalize_source_code(sample_code, 'cpp')
-    print(f"Input: {sample_code}")
-    print(f"Output: {tokens}")
