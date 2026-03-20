@@ -72,16 +72,26 @@ async def perform_full_analysis(assignment_id: uuid.UUID):
                         
                 fingerprints[sid] = combined_fp
                 
-            # Compare N x N
-            # Store results
-            # Clear old comparisons for this assignment (optional, depends on policy)
-            # We will just append new ones.
-            # But maybe we skip if we already compared the pair? For now compare all.
+            # Get existing comparisons to prevent duplicating matches if re-run
+            from app.models.comparison_result import ComparisonResult
+            from sqlalchemy import select
+            
             sub_ids = list(submissions)
+            sub_uuid_list = [s.id for s in sub_ids]
+            
+            existing_query = await db.execute(
+                select(ComparisonResult.source_submission_id, ComparisonResult.target_submission_id)
+                .where(ComparisonResult.source_submission_id.in_(sub_uuid_list))
+            )
+            existing_pairs = set((row[0], row[1]) for row in existing_query.all())
+            
             for i in range(len(sub_ids)):
                 for j in range(i + 1, len(sub_ids)):
                     source = sub_ids[i]
                     target = sub_ids[j]
+                    
+                    if (source.id, target.id) in existing_pairs or (target.id, source.id) in existing_pairs:
+                        continue
                     
                     s_fp = fingerprints.get(source.id, [])
                     t_fp = fingerprints.get(target.id, [])
