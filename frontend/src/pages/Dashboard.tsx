@@ -9,10 +9,37 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newAssignment, setNewAssignment] = useState({ title: '', course_code: '', language: 'JAVA', deadline: '' });
+  const [createError, setCreateError] = useState('');
   const navigate = useNavigate();
+
+  const formatDeadline = (deadline: string) => {
+    const dt = new Date(deadline);
+    if (Number.isNaN(dt.getTime())) {
+      return 'Invalid deadline';
+    }
+
+    const datePart = dt.toLocaleDateString([], {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      timeZone: 'America/Toronto'
+    });
+    const timePart = dt.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Toronto',
+      hour12: false
+    });
+    return `${datePart} ${timePart} (GMT-4)`;
+  };
 
   const fetchAssignments = async () => {
     const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/instructor/login');
+      return;
+    }
+
     try {
       const response = await axios.get('http://localhost:8000/api/v1/instructor/assignments', {
         headers: { Authorization: `Bearer ${token}` }
@@ -42,16 +69,23 @@ const Dashboard: React.FC = () => {
   const handleCreateAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/instructor/login');
+      return;
+    }
+
     try {
+      setCreateError('');
       await axios.post('http://localhost:8000/api/v1/instructor/assignments', newAssignment, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setIsModalOpen(false);
+      setNewAssignment({ title: '', course_code: '', language: 'JAVA', deadline: '' });
       setLoading(true);
       fetchAssignments();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Failed to create assignment");
+      setCreateError(err.response?.data?.detail || 'Failed to create assignment.');
     }
   };
 
@@ -82,6 +116,12 @@ const Dashboard: React.FC = () => {
               </button>
               
               <h2 style={{ fontSize: '1.25rem' }}>Create Assignment</h2>
+
+              {createError && (
+                <div style={{ padding: '0.75rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontSize: '0.85rem' }}>
+                  {createError}
+                </div>
+              )}
               
               <form onSubmit={handleCreateAssignment} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -178,7 +218,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Clock size={14} color="var(--text-tertiary)" /> 
-                    <span>Due: {new Date(assignment.deadline).toLocaleDateString()}</span>
+                    <span>Due: {formatDeadline(assignment.deadline)}</span>
                   </div>
                 </div>
                 

@@ -16,6 +16,11 @@ const ComparisonView: React.FC = () => {
   useEffect(() => {
     const fetchComparison = async () => {
       const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/instructor/login');
+        return;
+      }
+
       try {
         const response = await axios.get(`http://localhost:8000/api/v1/instructor/comparisons/${comparison_id}`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -90,7 +95,13 @@ const ComparisonView: React.FC = () => {
   if (loading) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Loading comparison...</div>;
   if (!data || !parsedData) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Comparison not found.</div>;
 
-  const { score, source_student_decrypted, target_student_decrypted, source_code, target_code } = data;
+  const {
+    score = 0,
+    source_student_decrypted = 'Student_Hidden',
+    target_student_decrypted = 'Student_Hidden',
+    source_code = '',
+    target_code = ''
+  } = data || {};
   const { sMap, tMap, totalBlocks } = parsedData;
 
   const maskIdentity = (id: string) => {
@@ -175,7 +186,7 @@ const ComparisonView: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Similarity Score</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1 }}>{score.toFixed(1)}%</span>
+                <span style={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1 }}>{typeof score === 'number' ? score.toFixed(1) : '0.0'}%</span>
                 {score > 80 ? (
                   <span style={{ color: '#dc2626', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.6rem', background: '#fef2f2', borderRadius: 'var(--radius-sm)', fontWeight: 600 }}>
                     <AlertOctagon size={14} /> Critical Match

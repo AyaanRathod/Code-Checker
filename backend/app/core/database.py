@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import declarative_base
 from app.core.config import get_settings
+from app.models.base import Base
 
 settings = get_settings()
 
@@ -15,8 +15,6 @@ AsyncSessionLocal = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False
 )
-
-Base = declarative_base()
 
 async def get_db() -> AsyncSession:
     """Dependency for database session."""

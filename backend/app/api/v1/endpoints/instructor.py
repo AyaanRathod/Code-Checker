@@ -2,6 +2,8 @@ from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from app.core.database import get_db
 from app.api.dependencies import get_current_user
@@ -19,6 +21,7 @@ import uuid
 import secrets
 
 router = APIRouter()
+CANADA_TZ = ZoneInfo("America/Toronto")
 
 @router.get("/assignments", response_model=List[dict])
 async def get_instructor_assignments(
@@ -92,13 +95,23 @@ async def create_assignment(
     # Generate unique access key
     access_key = f"{course_code.replace(' ', '').lower()}-{secrets.token_hex(4)}"
     
-    from datetime import datetime
+    try:
+        parsed_deadline = datetime.fromisoformat(deadline.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid deadline format")
+
+    if parsed_deadline.tzinfo is None:
+        # Treat datetime-local input as Canada time.
+        parsed_deadline = parsed_deadline.replace(tzinfo=CANADA_TZ)
+
+    deadline_utc = parsed_deadline.astimezone(timezone.utc)
+
     new_assignment = Assignment(
         course_id=course.id,
         title=title,
         access_key=access_key,
         language=language.upper(),
-        deadline=datetime.fromisoformat(deadline.replace("Z", "+00:00"))
+        deadline=deadline_utc
     )
     db.add(new_assignment)
     await db.commit()

@@ -11,11 +11,39 @@ const AssignmentDetails: React.FC = () => {
   const [comparisons, setComparisons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
+  const [error, setError] = useState('');
+
+  const formatDeadline = (deadline: string) => {
+    const dt = new Date(deadline);
+    if (Number.isNaN(dt.getTime())) {
+      return 'Invalid deadline';
+    }
+
+    const datePart = dt.toLocaleDateString([], {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      timeZone: 'America/Toronto'
+    });
+    const timePart = dt.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Toronto',
+      hour12: false
+    });
+    return `${datePart} ${timePart} (GMT-4)`;
+  };
 
   useEffect(() => {
     const fetchDetails = async () => {
       const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/instructor/login');
+        return;
+      }
+
       try {
+        setError('');
         const [assnRes, compRes] = await Promise.all([
           axios.get(`http://localhost:8000/api/v1/instructor/assignments/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
           axios.get(`http://localhost:8000/api/v1/instructor/assignments/${id}/comparisons`, { headers: { Authorization: `Bearer ${token}` } })
@@ -23,9 +51,9 @@ const AssignmentDetails: React.FC = () => {
         
         setAssignment(assnRes.data);
         setComparisons(compRes.data);
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
-        alert("Failed to fetch assignment details.");
+        setError(err.response?.data?.detail || 'Failed to fetch assignment details.');
       } finally {
         setLoading(false);
       }
@@ -36,6 +64,11 @@ const AssignmentDetails: React.FC = () => {
   const handleRunAnalysis = async () => {
     setTriggering(true);
     const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/instructor/login');
+      return;
+    }
+
     try {
       await axios.post(`http://localhost:8000/api/v1/analysis/${id}/run`, {}, {
         headers: { Authorization: `Bearer ${token}` }
@@ -51,7 +84,10 @@ const AssignmentDetails: React.FC = () => {
   };
 
   if (loading) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Loading assignment details...</div>;
+  if (error) return <div style={{ padding: '4rem', textAlign: 'center', color: '#dc2626' }}>{error}</div>;
   if (!assignment) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Assignment not found.</div>;
+
+  const deadlineDisplay = formatDeadline(assignment.deadline);
 
   return (
     <div className="main-content" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -75,7 +111,7 @@ const AssignmentDetails: React.FC = () => {
             </div>
             <div style={{ display: 'flex', gap: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '1rem' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><BookOpen size={16}/> {assignment.course}</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Clock size={16}/> Deadline: {new Date(assignment.deadline).toLocaleDateString()}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Clock size={16}/> Deadline: {deadlineDisplay}</span>
             </div>
           </div>
           
@@ -131,7 +167,7 @@ const AssignmentDetails: React.FC = () => {
                       <td style={{ padding: '1.25rem 1rem', fontFamily: 'var(--font-mono)', fontSize: '0.9rem' }}>{c.source_student}</td>
                       <td style={{ padding: '1.25rem 1rem', fontFamily: 'var(--font-mono)', fontSize: '0.9rem' }}>{c.target_student}</td>
                       <td style={{ padding: '1.25rem 1rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: c.score > 80 ? '#dc2626' : c.score > 60 ? '#d97706' : 'var(--text-primary)' }}>
-                        {c.score.toFixed(1)}%
+                        {typeof c.score === 'number' ? c.score.toFixed(1) : '0.0'}%
                       </td>
                       <td style={{ padding: '1.25rem 1rem' }}>
                         {c.score > 80 ? (

@@ -75,15 +75,15 @@ const StudentPortal: React.FC = () => {
             <div style={{ background: 'var(--bg-base)', padding: '1.25rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', textAlign: 'left', marginBottom: '2rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Receipt ID:</span>
-                <span style={{ fontFamily: 'var(--font-mono)' }}>{successData.submission_id}</span>
+                <span style={{ fontFamily: 'var(--font-mono)' }}>{successData?.submission_id || 'N/A'}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', fontSize: '0.85rem' }}>
                 <span style={{ color: 'var(--text-secondary)' }}>Timestamp:</span>
-                <span style={{ fontFamily: 'var(--font-mono)' }}>{new Date(successData.timestamp).toLocaleString()}</span>
+                <span style={{ fontFamily: 'var(--font-mono)' }}>{successData?.timestamp ? `${new Date(successData.timestamp).toLocaleDateString([], { year: 'numeric', month: 'numeric', day: 'numeric', timeZone: 'America/Toronto' })} ${new Date(successData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Toronto' })} (GMT-4)` : 'N/A'}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                  <span style={{ color: 'var(--text-secondary)' }}>Attempt:</span>
-                 <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{successData.attempt} / 3</span>
+                 <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{successData?.attempt || 0} / 3</span>
               </div>
             </div>
             

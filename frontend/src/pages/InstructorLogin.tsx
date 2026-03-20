@@ -27,6 +27,10 @@ const InstructorLogin: React.FC = () => {
         }
       });
 
+      if (!response.data?.access_token) {
+        throw new Error('Invalid login response from server.');
+      }
+
       localStorage.setItem('token', response.data.access_token);
       navigate('/instructor/dashboard');
     } catch (err: any) {

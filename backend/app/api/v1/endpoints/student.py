@@ -1,4 +1,3 @@
-import os
 import uuid
 import hashlib
 from datetime import datetime, timezone
@@ -75,48 +74,74 @@ async def submit_assignment(
     if not extracted_files:
         raise HTTPException(status_code=400, detail="No valid source code files found (.c, .cpp, .java).")
 
-    # 6. Create Submission Record
-    sub_data = SubmissionCreate(
-        assignment_id=assignment.id,
-        student_name_encrypted=encrypted_name,
-        student_id_encrypted=encrypted_id
-    )
-    new_submission = await submission_repository.create(db, sub_data)
-    
-    # Update attempt number
-    new_submission.attempt_number = expected_attempt
-    await db.flush()
-    
-    # 7. Process each file
-    for orig_filename, content in extracted_files:
-        try:
-            content_str = content.decode('utf-8', errors='ignore')
-        except Exception:
-            # If it's pure binary or really mangled, skip
-            continue
-            
-        sanitized_code = sanitization_service.strip_comments(content_str, assignment.language)
-        sanitized_bytes = sanitized_code.encode('utf-8')
-        
-        # Calculate Hash
-        file_hash = hashlib.sha256(sanitized_bytes).hexdigest()
-        
-        # MinIO Path: assignment_id/submission_id/uuid
-        st_object_name = f"{assignment.id}/{new_submission.id}/{uuid.uuid4()}"
-        
-        # Upload to MinIO
-        storage_service.upload_file(st_object_name, sanitized_bytes, content_type="text/plain")
-        
-        # Create StoredFile Record
-        line_count = len(sanitized_code.splitlines())
-        stored_file_data = StoredFileCreate(
-            submission_id=new_submission.id,
-            storage_path=st_object_name,
-            file_hash=file_hash,
-            byte_size=len(sanitized_bytes),
-            line_count=line_count
+    uploaded_objects: List[str] = []
+
+    try:
+        # 6. Create Submission Record
+        sub_data = SubmissionCreate(
+            assignment_id=assignment.id,
+            student_name_encrypted=encrypted_name,
+            student_id_encrypted=encrypted_id
         )
-        await stored_file_repository.create(db, stored_file_data)
+        new_submission = await submission_repository.create(db, sub_data)
+        
+        # Update attempt number
+        new_submission.attempt_number = expected_attempt
+        await db.flush()
+
+        processed_files = 0
+        
+        # 7. Process each file
+        for _, content in extracted_files:
+            try:
+                content_str = content.decode('utf-8', errors='ignore')
+            except Exception:
+                # If it's pure binary or really mangled, skip
+                continue
+                
+            sanitized_code = sanitization_service.strip_comments(content_str, assignment.language)
+            sanitized_bytes = sanitized_code.encode('utf-8')
+            
+            # Calculate Hash
+            file_hash = hashlib.sha256(sanitized_bytes).hexdigest()
+            
+            # MinIO Path: assignment_id/submission_id/uuid
+            st_object_name = f"{assignment.id}/{new_submission.id}/{uuid.uuid4()}"
+            
+            # Upload to MinIO
+            storage_service.upload_file(st_object_name, sanitized_bytes, content_type="text/plain")
+            uploaded_objects.append(st_object_name)
+            
+            # Create StoredFile Record
+            line_count = len(sanitized_code.splitlines())
+            stored_file_data = StoredFileCreate(
+                submission_id=new_submission.id,
+                storage_path=st_object_name,
+                file_hash=file_hash,
+                byte_size=len(sanitized_bytes),
+                line_count=line_count
+            )
+            await stored_file_repository.create(db, stored_file_data)
+            processed_files += 1
+
+        if processed_files == 0:
+            raise HTTPException(status_code=400, detail="No valid decodable source files were found after sanitization.")
+    except HTTPException:
+        await db.rollback()
+        for object_name in uploaded_objects:
+            try:
+                storage_service.delete_file(object_name)
+            except Exception:
+                continue
+        raise
+    except Exception:
+        await db.rollback()
+        for object_name in uploaded_objects:
+            try:
+                storage_service.delete_file(object_name)
+            except Exception:
+                continue
+        raise HTTPException(status_code=500, detail="Submission failed during processing. Please try again.")
         
     return {
         "message": "Submission successful",
