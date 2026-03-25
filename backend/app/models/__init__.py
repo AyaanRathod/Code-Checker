@@ -6,6 +6,8 @@ from app.models.submission import Submission
 from app.models.stored_file import StoredFile
 from app.models.comparison_result import ComparisonResult
 from app.models.boilerplate import Boilerplate
+from app.models.repository import Repository
+from app.models.repository_submission import RepositorySubmission
 
 # This ensures all models are loaded when we import Base
 __all__ = [
@@ -16,5 +18,7 @@ __all__ = [
     "Submission",
     "StoredFile",
     "ComparisonResult",
-    "Boilerplate"
+    "Boilerplate",
+    "Repository",
+    "RepositorySubmission"
 ]

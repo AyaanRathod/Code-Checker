@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, AlertTriangle, CheckCircle, Search, Download, BookOpen, Clock, FileWarning, LayoutDashboard, Database, Activity, GitCommit, Archive, Users, FileCode, Hash, Flag } from 'lucide-react';
+import { ArrowLeft, Play, AlertTriangle, CheckCircle, Search, Download, BookOpen, Clock, FileWarning, LayoutDashboard, Database, Activity, GitCommit, Archive, Users, FileCode, Hash, Flag, ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 
@@ -16,20 +16,26 @@ const AssignmentDetails: React.FC = () => {
   const [downloading, setDownloading] = useState(false);
   const [activeTab, setActiveTab] = useState<TabView>('submissions');
   const [submissions, setSubmissions] = useState<any[]>([]);
+  const [repositories, setRepositories] = useState<any[]>([]);
+  const [showAnalysisMenu, setShowAnalysisMenu] = useState(false);
+  const [showRepoModal, setShowRepoModal] = useState(false);
+  const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchDetails = async () => {
       const token = localStorage.getItem('token');
       try {
-        const [assnRes, compRes, subRes] = await Promise.all([
+        const [assnRes, compRes, subRes, repoRes] = await Promise.all([
           axios.get(`http://localhost:8000/api/v1/instructor/assignments/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
           axios.get(`http://localhost:8000/api/v1/instructor/assignments/${id}/comparisons`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`http://localhost:8000/api/v1/instructor/assignments/${id}/submissions`, { headers: { Authorization: `Bearer ${token}` } })
+          axios.get(`http://localhost:8000/api/v1/instructor/assignments/${id}/submissions`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`http://localhost:8000/api/v1/repositories/`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] }))
         ]);
 
         setAssignment(assnRes.data);
         setComparisons(compRes.data);
         setSubmissions(subRes.data);
+        setRepositories(repoRes.data);
       } catch (err) {
         console.error(err);
         alert("Failed to fetch assignment details.");
@@ -40,14 +46,20 @@ const AssignmentDetails: React.FC = () => {
     fetchDetails();
   }, [id]);
 
-  const handleRunAnalysis = async () => {
+  const handleRunAnalysis = async (repoIds?: string[]) => {
     setTriggering(true);
+    setShowAnalysisMenu(false);
+    setShowRepoModal(false);
     const token = localStorage.getItem('token');
     try {
-      await axios.post(`http://localhost:8000/api/v1/analysis/${id}/run`, {}, {
+      const body = repoIds && repoIds.length > 0 ? { repository_ids: repoIds } : {};
+      await axios.post(`http://localhost:8000/api/v1/analysis/${id}/run`, body, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert('Analysis has been queued to run in the background! Check back in a moment.');
+      const msg = repoIds && repoIds.length > 0
+        ? `Analysis queued: internal + cross-repo comparison against ${repoIds.length} repository(ies). Check back in a moment.`
+        : 'Analysis has been queued to run in the background! Check back in a moment.';
+      alert(msg);
       setAssignment({...assignment, status: 'Analyzing...'});
     } catch (err) {
       console.error(err);
@@ -135,6 +147,71 @@ const AssignmentDetails: React.FC = () => {
   return (
     <div className="main-content" style={{ display: 'flex', flexDirection: 'column' }}>
 
+      {/* Repository Selection Modal */}
+      {showRepoModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+          <div className="glass-card" style={{ width: '480px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Compare Against Repositories</h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>
+              Select one or more repositories to compare current submissions against. Internal N×N analysis will also run.
+            </p>
+
+            {repositories.length === 0 ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                No repositories available. Archive an assignment or upload a repository first.
+              </div>
+            ) : (
+              <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {repositories.map((repo: any) => (
+                  <label
+                    key={repo.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem',
+                      borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)',
+                      cursor: 'pointer', transition: 'all 0.15s ease',
+                      background: selectedRepoIds.includes(repo.id) ? '#ede9fe' : 'var(--bg-surface)'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedRepoIds.includes(repo.id)}
+                      onChange={() => {
+                        setSelectedRepoIds(prev =>
+                          prev.includes(repo.id) ? prev.filter((r: string) => r !== repo.id) : [...prev, repo.id]
+                        );
+                      }}
+                      style={{ accentColor: '#7c3aed' }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{repo.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                        {repo.language} · {repo.submission_count} submissions
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-outline" onClick={() => setShowRepoModal(false)}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                disabled={selectedRepoIds.length === 0}
+                onClick={() => handleRunAnalysis(selectedRepoIds)}
+              >
+                <Play size={14} fill="currentColor" /> Run Cross-Repo Analysis ({selectedRepoIds.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Click-away handler for analysis dropdown */}
+      {showAnalysisMenu && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowAnalysisMenu(false)} />
+      )}
+
       {/* Top Details Action Header */}
       <div style={{ background: 'var(--bg-surface)', padding: '0.75rem 2rem', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
         <button onClick={() => navigate('/instructor/dashboard')} className="btn btn-outline" style={{ border: 'none', padding: 0, marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
@@ -146,8 +223,8 @@ const AssignmentDetails: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.25rem' }}>
               <h1 style={{ fontSize: '1.5rem', margin: 0 }}>{assignment.title}</h1>
               <span style={{
-                background: assignment.status === 'Open' ? '#f1f5f9' : '#ecfdf5',
-                color: assignment.status === 'Open' ? '#64748b' : '#059669',
+                background: assignment.status === 'Archived' ? '#ede9fe' : assignment.status === 'Open' ? '#f1f5f9' : '#ecfdf5',
+                color: assignment.status === 'Archived' ? '#7c3aed' : assignment.status === 'Open' ? '#64748b' : '#059669',
                 padding: '0.25rem 0.75rem', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px'
               }}>
                 {assignment.status}
@@ -160,15 +237,63 @@ const AssignmentDetails: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', gap: '1rem' }}>
-            <button className="btn btn-outline" disabled={comparisons.length === 0} style={{ background: 'var(--bg-surface)' }}>
-              <Download size={16} /> PDF Report
-            </button>
             <button className="btn btn-outline" onClick={handleDownloadSubmissions} disabled={downloading} style={{ background: 'var(--bg-surface)' }}>
               <Archive size={16} /> {downloading ? 'Downloading...' : 'Download Submissions'}
             </button>
-            <button className="btn btn-primary" onClick={handleRunAnalysis} disabled={triggering}>
-              <Play size={16} fill="currentColor" /> {triggering ? 'Analyzing...' : 'Run Graph Setup'}
-            </button>
+            {assignment.status !== 'Archived' && (
+              <>
+                <button className="btn btn-outline" disabled={comparisons.length === 0} style={{ background: 'var(--bg-surface)' }}>
+                  <Download size={16} /> PDF Report
+                </button>
+                {/* Analysis button with dropdown for cross-repo */}
+                <div style={{ position: 'relative' }}>
+                  <div style={{ display: 'flex' }}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => handleRunAnalysis()}
+                      disabled={triggering}
+                      style={{ borderTopRightRadius: repositories.length > 0 ? 0 : undefined, borderBottomRightRadius: repositories.length > 0 ? 0 : undefined }}
+                    >
+                      <Play size={16} fill="currentColor" /> {triggering ? 'Analyzing...' : 'Run Analysis'}
+                    </button>
+                    {repositories.length > 0 && (
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => setShowAnalysisMenu(!showAnalysisMenu)}
+                        disabled={triggering}
+                        style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, borderLeft: '1px solid rgba(255,255,255,0.2)', padding: '0.5rem' }}
+                      >
+                        <ChevronDown size={16} />
+                      </button>
+                    )}
+                  </div>
+                  {showAnalysisMenu && (
+                    <div style={{
+                      position: 'absolute', top: '100%', right: 0, marginTop: '0.25rem',
+                      background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-lg)',
+                      minWidth: '260px', zIndex: 50, overflow: 'hidden'
+                    }}>
+                      <button
+                        onClick={() => { handleRunAnalysis(); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.75rem 1rem', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-primary)', textAlign: 'left' }}
+                        className="table-row-hover"
+                      >
+                        <Play size={14} /> Internal Analysis Only
+                      </button>
+                      <div style={{ borderTop: '1px solid var(--border-subtle)' }} />
+                      <button
+                        onClick={() => { setShowAnalysisMenu(false); setShowRepoModal(true); setSelectedRepoIds([]); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.75rem 1rem', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-primary)', textAlign: 'left' }}
+                        className="table-row-hover"
+                      >
+                        <Database size={14} /> Compare Against Repositories...
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -192,26 +317,30 @@ const AssignmentDetails: React.FC = () => {
              )}
            </button>
 
-           <button
-             onClick={() => setActiveTab('overview')}
-             className={`sidebar-tab ${activeTab === 'overview' ? 'active' : ''}`}
-           >
-             <LayoutDashboard size={18} /> Analytics Overview
-           </button>
+           {assignment.status !== 'Archived' && (
+             <>
+               <button
+                 onClick={() => setActiveTab('overview')}
+                 className={`sidebar-tab ${activeTab === 'overview' ? 'active' : ''}`}
+               >
+                 <LayoutDashboard size={18} /> Analytics Overview
+               </button>
 
-           <button
-             onClick={() => setActiveTab('results')}
-             className={`sidebar-tab ${activeTab === 'results' ? 'active' : ''}`}
-           >
-             <Database size={18} /> Pairwise Similarities
-           </button>
+               <button
+                 onClick={() => setActiveTab('results')}
+                 className={`sidebar-tab ${activeTab === 'results' ? 'active' : ''}`}
+               >
+                 <Database size={18} /> Pairwise Similarities
+               </button>
 
-           <button
-             onClick={() => setActiveTab('clusters')}
-             className={`sidebar-tab ${activeTab === 'clusters' ? 'active' : ''}`}
-           >
-             <GitCommit size={18} /> Similarity Matrix Hover
-           </button>
+               <button
+                 onClick={() => setActiveTab('clusters')}
+                 className={`sidebar-tab ${activeTab === 'clusters' ? 'active' : ''}`}
+               >
+                 <GitCommit size={18} /> Similarity Matrix Hover
+               </button>
+             </>
+           )}
         </aside>
 
         {/* Right Content Area */}
@@ -451,7 +580,12 @@ const AssignmentDetails: React.FC = () => {
                             className="table-row-hover"
                           >
                             <td style={{ padding: '1.25rem 1rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{c.source_student}</td>
-                            <td style={{ padding: '1.25rem 1rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{c.target_student}</td>
+                            <td style={{ padding: '1.25rem 1rem', fontSize: '0.85rem' }}>
+                              <span style={{ fontFamily: 'var(--font-mono)' }}>{c.target_student}</span>
+                              {c.comparison_type === 'cross_repo' && (
+                                <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: 'var(--radius-full)', background: '#ede9fe', color: '#7c3aed', fontWeight: 600, fontFamily: 'var(--font-sans)' }}>REPO</span>
+                              )}
+                            </td>
                             <td style={{ padding: '1.25rem 1rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: c.score > 80 ? '#dc2626' : c.score > 60 ? '#d97706' : 'var(--text-primary)' }}>
                               {c.score.toFixed(1)}%
                             </td>

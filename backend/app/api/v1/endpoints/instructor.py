@@ -2,8 +2,8 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from datetime import datetime, timezone
+from sqlalchemy import select, func, delete, update
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import io
 import zipfile
@@ -29,14 +29,91 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 CANADA_TZ = ZoneInfo("America/Toronto")
+ARCHIVE_GRACE_DAYS = 30
 
 
 def effective_status(assignment: Assignment) -> str:
-    """Return the display status: 'Closed' if deadline has passed and status is 'Open', otherwise the stored status."""
-    if assignment.status == "Open" and assignment.deadline:
-        if assignment.deadline < datetime.now(timezone.utc):
+    """Return the display status, computed at read-time:
+    - 'Closed' if deadline has passed and stored status is 'Open'
+    - 'Archived' if deadline + 30 days has passed and stored status is 'Open' or 'Closed'
+    - Otherwise the stored status
+    """
+    if assignment.status == "Archived":
+        return "Archived"
+    now = datetime.now(timezone.utc)
+    if assignment.deadline:
+        if assignment.status in ("Open", "Closed") and assignment.deadline + timedelta(days=ARCHIVE_GRACE_DAYS) < now:
+            return "Archived"
+        if assignment.status == "Open" and assignment.deadline < now:
             return "Closed"
     return assignment.status
+
+
+async def finalize_archive(db: AsyncSession, assignment: Assignment) -> None:
+    """One-time migration: permanently archive an assignment by stripping PII and clearing analysis.
+    Idempotent — safe to call multiple times."""
+    if assignment.status == "Archived":
+        return  # Already finalized in DB
+
+    logger.info("Finalizing archive for assignment %s", assignment.id)
+
+    # 1. Set assignment status to Archived in DB
+    assignment.status = "Archived"
+
+    # 2. Strip PII from all submissions
+    await db.execute(
+        update(Submission)
+        .where(Submission.assignment_id == assignment.id)
+        .values(student_name_encrypted=None, student_id_encrypted=None)
+    )
+
+    # 3. Delete comparison results (analysis data cleared on archive)
+    sub_ids_query = select(Submission.id).where(Submission.assignment_id == assignment.id)
+    sub_ids = [row[0] for row in (await db.execute(sub_ids_query)).all()]
+    if sub_ids:
+        await db.execute(
+            delete(ComparisonResult).where(
+                (ComparisonResult.source_submission_id.in_(sub_ids)) |
+                (ComparisonResult.target_submission_id.in_(sub_ids))
+            )
+        )
+
+    # 4. Auto-create a Repository from the archived submissions
+    from app.models.repository import Repository
+    from app.models.repository_submission import RepositorySubmission
+
+    # Look up the course for a good repo name
+    course_query = await db.execute(select(Course).where(Course.id == assignment.course_id))
+    course = course_query.scalars().first()
+    repo_name = f"{course.course_code} - {assignment.title}" if course else assignment.title
+
+    repo = Repository(
+        instructor_id=course.instructor_id if course else None,
+        name=repo_name,
+        language=assignment.language,
+        source_assignment_id=assignment.id,
+        submission_count=len(sub_ids)
+    )
+    db.add(repo)
+    await db.flush()
+
+    # Create RepositorySubmission entries for each submission and link their stored files
+    for sid in sub_ids:
+        repo_sub = RepositorySubmission(
+            repository_id=repo.id,
+            label=str(sid)[:8]  # Short UUID as label (PII stripped)
+        )
+        db.add(repo_sub)
+        await db.flush()
+
+        # Link existing stored files to the repository submission
+        await db.execute(
+            update(StoredFile)
+            .where(StoredFile.submission_id == sid)
+            .values(repository_submission_id=repo_sub.id)
+        )
+
+    await db.flush()
 
 @router.get("/assignments", response_model=List[dict])
 async def get_instructor_assignments(
@@ -55,15 +132,22 @@ async def get_instructor_assignments(
     rows = result.all()
     
     response_data = []
-    
+    needs_commit = False
+
     for assignment, course in rows:
+        # Trigger lazy archive finalization if effective status diverges from DB
+        eff = effective_status(assignment)
+        if eff == "Archived" and assignment.status != "Archived":
+            await finalize_archive(db, assignment)
+            needs_commit = True
+
         # Count submissions
         sub_query = select(func.count(Submission.id)).where(Submission.assignment_id == assignment.id)
         sub_count = await db.scalar(sub_query)
-        
+
         # Count flagged
         flag_query = select(func.count(Submission.id)).where(
-            Submission.assignment_id == assignment.id, 
+            Submission.assignment_id == assignment.id,
             Submission.is_flagged == True
         )
         flag_count = await db.scalar(flag_query)
@@ -72,7 +156,7 @@ async def get_instructor_assignments(
             "id": str(assignment.id),
             "title": assignment.title,
             "course": course.course_code,
-            "status": effective_status(assignment),
+            "status": eff,
             "count": sub_count or 0,
             "flags": flag_count or 0,
             "access_key": assignment.access_key,
@@ -80,6 +164,9 @@ async def get_instructor_assignments(
             "deadline": assignment.deadline
         })
         
+    if needs_commit:
+        await db.commit()
+
     return response_data
 
 @router.post("/assignments", response_model=dict)
@@ -265,15 +352,47 @@ async def get_assignment(
         raise HTTPException(status_code=404, detail="Assignment not found")
         
     assignment, course = row
+    eff = effective_status(assignment)
+    if eff == "Archived" and assignment.status != "Archived":
+        await finalize_archive(db, assignment)
+        await db.commit()
+
     return {
         "id": str(assignment.id),
         "title": assignment.title,
         "course": course.course_code,
-        "status": effective_status(assignment),
+        "status": eff,
         "access_key": assignment.access_key,
         "deadline": assignment.deadline,
         "language": assignment.language
     }
+
+
+@router.post("/assignments/{assignment_id}/archive")
+async def archive_assignment(
+    assignment_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: Instructor = Depends(get_current_user)
+):
+    """Manually archive an assignment immediately. Strips PII and clears analysis results. Irreversible."""
+    a_query = (
+        select(Assignment, Course)
+        .join(Course, Assignment.course_id == Course.id)
+        .where(Assignment.id == assignment_id, Course.instructor_id == current_user.id)
+    )
+    row = (await db.execute(a_query)).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    assignment, course = row
+    if assignment.status == "Archived":
+        return {"message": "Assignment is already archived", "status": "Archived"}
+
+    await finalize_archive(db, assignment)
+    await db.commit()
+
+    return {"message": "Assignment archived successfully. Student identities have been permanently removed.", "status": "Archived"}
+
 
 @router.get("/assignments/{assignment_id}/submissions")
 async def get_assignment_submissions(
@@ -300,12 +419,15 @@ async def get_assignment_submissions(
 
     response = []
     for sub in submissions:
-        # Mask student ID: first 2 + **** + last 2
-        raw_id = encryption_service.decrypt(sub.student_id_encrypted) if sub.student_id_encrypted else "Unknown"
-        if len(raw_id) > 4:
-            masked_id = raw_id[:2] + "****" + raw_id[-2:]
+        # Mask student ID: first 2 + **** + last 2, or REDACTED if PII stripped (archived)
+        if sub.student_id_encrypted:
+            raw_id = encryption_service.decrypt(sub.student_id_encrypted) or "Unknown"
+            if len(raw_id) > 4:
+                masked_id = raw_id[:2] + "****" + raw_id[-2:]
+            else:
+                masked_id = "****"
         else:
-            masked_id = "****"
+            masked_id = "REDACTED"
 
         file_count = len(sub.stored_files) if sub.stored_files else 0
         total_lines = sum(f.line_count for f in sub.stored_files) if sub.stored_files else 0
@@ -338,44 +460,60 @@ async def get_comparisons(
     if not a_result.scalars().first():
         raise HTTPException(status_code=404, detail="Assignment not found")
         
-    # Get all comparisons
+    # Get all comparisons (both internal and cross-repo)
+    from app.models.repository_submission import RepositorySubmission
     query = (
         select(ComparisonResult)
-        .options(joinedload(ComparisonResult.source_submission), joinedload(ComparisonResult.target_submission))
+        .options(
+            joinedload(ComparisonResult.source_submission),
+            joinedload(ComparisonResult.target_submission),
+            joinedload(ComparisonResult.target_repo_submission)
+        )
         .join(Submission, ComparisonResult.source_submission_id == Submission.id)
         .where(Submission.assignment_id == assignment_id)
         .order_by(ComparisonResult.similarity_score.desc())
     )
     result = await db.execute(query)
-    comparisons = result.scalars().all()
-    
+    comparisons = result.scalars().unique().all()
+
     response_data = []
     for c in comparisons:
-        # Decrypt IDs for display, handle None safely
+        # Source is always a current submission
         src_id = encryption_service.decrypt(c.source_submission.student_id_encrypted) if c.source_submission.student_id_encrypted else "Unknown"
-        tgt_id = encryption_service.decrypt(c.target_submission.student_id_encrypted) if c.target_submission.student_id_encrypted else "Unknown"
-        
-        # Mask IDs minimally (e.g. keep first and last 2 digits, mask middle)
         if len(src_id) > 4:
             src_display = src_id[:2] + "****" + src_id[-2:]
         else:
             src_display = "Student_A"
-            
-        if len(tgt_id) > 4:
-            tgt_display = tgt_id[:2] + "****" + tgt_id[-2:]
+
+        comp_type = c.comparison_type or "internal"
+
+        if comp_type == "cross_repo" and c.target_repo_submission:
+            # Cross-repo: target is a repository submission
+            meta = c.match_metadata or {}
+            repo_name = meta.get("repo_name", "Repository")
+            repo_label = meta.get("repo_label", c.target_repo_submission.label)
+            tgt_display = f"[{repo_name}] {repo_label}"
+            tgt_id_raw = repo_label
         else:
-            tgt_display = "Student_B"
-            
+            # Internal: target is a current submission
+            tgt_id = encryption_service.decrypt(c.target_submission.student_id_encrypted) if c.target_submission and c.target_submission.student_id_encrypted else "Unknown"
+            if len(tgt_id) > 4:
+                tgt_display = tgt_id[:2] + "****" + tgt_id[-2:]
+            else:
+                tgt_display = "Student_B"
+            tgt_id_raw = tgt_id
+
         response_data.append({
             "id": str(c.id),
             "source_student": src_display,
             "target_student": tgt_display,
             "raw_source_id": src_id,
-            "raw_target_id": tgt_id,
+            "raw_target_id": tgt_id_raw,
             "score": float(c.similarity_score),
+            "comparison_type": comp_type,
             "status": "High Risk" if c.similarity_score > 80 else "Review" if c.similarity_score > 60 else "Normal"
         })
-        
+
     return response_data
 
 @router.get("/comparisons/{comparison_id}")
@@ -384,19 +522,24 @@ async def get_comparison_detail(
     db: AsyncSession = Depends(get_db),
     current_user: Instructor = Depends(get_current_user)
 ):
+    from app.models.repository_submission import RepositorySubmission
+
     query = (
         select(ComparisonResult)
-        .options(joinedload(ComparisonResult.source_submission), joinedload(ComparisonResult.target_submission))
+        .options(
+            joinedload(ComparisonResult.source_submission),
+            joinedload(ComparisonResult.target_submission),
+            joinedload(ComparisonResult.target_repo_submission)
+        )
         .where(ComparisonResult.id == comparison_id)
     )
     result = await db.execute(query)
     comparison = result.scalars().first()
-    
+
     if not comparison:
         raise HTTPException(status_code=404, detail="Comparison not found")
-        
+
     # Security: Ensure this comparison belongs to this instructor via assignment->course
-    from app.models.course import Course
     a_query = select(Assignment).join(Course).where(
         Assignment.id == comparison.source_submission.assignment_id,
         Course.instructor_id == current_user.id
@@ -405,25 +548,17 @@ async def get_comparison_detail(
     if not a_result.scalars().first():
         raise HTTPException(status_code=403, detail="Unauthorized")
 
-    # Decrypt IDs and names
-    raw_source = encryption_service.decrypt(comparison.source_submission.student_id_encrypted) or "Unknown Source"
-    raw_target = encryption_service.decrypt(comparison.target_submission.student_id_encrypted) or "Unknown Target"
-    source_name = encryption_service.decrypt(comparison.source_submission.student_name_encrypted) or ""
-    target_name = encryption_service.decrypt(comparison.target_submission.student_name_encrypted) or ""
-    
+    comp_type = comparison.comparison_type or "internal"
+    meta = comparison.match_metadata or {}
+
+    # Source side (always a current submission)
+    raw_source = encryption_service.decrypt(comparison.source_submission.student_id_encrypted) if comparison.source_submission.student_id_encrypted else "Unknown Source"
+    source_name = encryption_service.decrypt(comparison.source_submission.student_name_encrypted) if comparison.source_submission.student_name_encrypted else ""
+
     sf_query = select(StoredFile).where(StoredFile.submission_id == comparison.source_submission.id).order_by(StoredFile.storage_path)
     s_files = (await db.execute(sf_query)).scalars().all()
 
-    tf_query = select(StoredFile).where(StoredFile.submission_id == comparison.target_submission.id).order_by(StoredFile.storage_path)
-    t_files = (await db.execute(tf_query)).scalars().all()
-
-    meta = comparison.match_metadata or {}
-
-    # Build lookup: filename -> ranges from stored metadata
     source_range_lookup = {item["filename"]: item["ranges"] for item in meta.get("source_files", [])}
-    target_range_lookup = {item["filename"]: item["ranges"] for item in meta.get("target_files", [])}
-
-    # Download ALL files for each submission with per-file ranges
     source_files_out = []
     for f in s_files:
         fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
@@ -431,34 +566,45 @@ async def get_comparison_detail(
             code = storage_service.download_file(f.storage_path).decode('utf-8')
         except Exception as e:
             code = f"Error downloading file: {str(e)}"
-        source_files_out.append({
-            "filename": fname,
-            "code": code,
-            "ranges": source_range_lookup.get(fname, [])
-        })
+        source_files_out.append({"filename": fname, "code": code, "ranges": source_range_lookup.get(fname, [])})
 
+    # Target side — depends on comparison type
+    target_range_lookup = {item["filename"]: item["ranges"] for item in meta.get("target_files", [])}
     target_files_out = []
+
+    if comp_type == "cross_repo" and comparison.target_repo_submission_id:
+        # Target is a repository submission
+        raw_target = f"[{meta.get('repo_name', 'Repository')}] {meta.get('repo_label', '')}"
+        target_name = ""
+
+        tf_query = select(StoredFile).where(StoredFile.repository_submission_id == comparison.target_repo_submission_id).order_by(StoredFile.storage_path)
+        t_files = (await db.execute(tf_query)).scalars().all()
+    else:
+        # Target is a regular submission
+        raw_target = encryption_service.decrypt(comparison.target_submission.student_id_encrypted) if comparison.target_submission and comparison.target_submission.student_id_encrypted else "Unknown Target"
+        target_name = encryption_service.decrypt(comparison.target_submission.student_name_encrypted) if comparison.target_submission and comparison.target_submission.student_name_encrypted else ""
+
+        tf_query = select(StoredFile).where(StoredFile.submission_id == comparison.target_submission.id).order_by(StoredFile.storage_path)
+        t_files = (await db.execute(tf_query)).scalars().all()
+
     for f in t_files:
         fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
         try:
             code = storage_service.download_file(f.storage_path).decode('utf-8')
         except Exception as e:
             code = f"Error downloading file: {str(e)}"
-        target_files_out.append({
-            "filename": fname,
-            "code": code,
-            "ranges": target_range_lookup.get(fname, [])
-        })
+        target_files_out.append({"filename": fname, "code": code, "ranges": target_range_lookup.get(fname, [])})
 
-    # Backward compat: also send single source_code/target_code (first file)
     s_code = source_files_out[0]["code"] if source_files_out else "No Source File Found"
     t_code = target_files_out[0]["code"] if target_files_out else "No Target File Found"
 
     return {
         "id": str(comparison.id),
         "score": float(comparison.similarity_score),
+        "comparison_type": comp_type,
         "source_submission_id": str(comparison.source_submission_id),
-        "target_submission_id": str(comparison.target_submission_id),
+        "target_submission_id": str(comparison.target_submission_id) if comparison.target_submission_id else None,
+        "target_repo_submission_id": str(comparison.target_repo_submission_id) if comparison.target_repo_submission_id else None,
         "source_student_decrypted": raw_source,
         "target_student_decrypted": raw_target,
         "source_student_name": source_name,
@@ -510,13 +656,15 @@ async def download_single_submission(
 
     ext = LANGUAGE_EXTENSIONS.get(assignment.language, ".txt")
 
-    # Decrypt student ID for folder/file naming
+    # Use student ID for folder naming, or submission UUID if PII was stripped (archived)
     student_id = "unknown"
     if submission.student_id_encrypted:
         try:
             student_id = encryption_service.decrypt(submission.student_id_encrypted)
         except Exception:
             student_id = str(submission.id)[:8]
+    else:
+        student_id = str(submission.id)[:8]
 
     folder_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in student_id)
 
@@ -585,13 +733,15 @@ async def download_submissions(
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for submission in submissions:
-            # Decrypt student ID for folder name
+            # Use student ID for folder name, or submission UUID if PII was stripped (archived)
             student_id = "unknown"
             if submission.student_id_encrypted:
                 try:
                     student_id = encryption_service.decrypt(submission.student_id_encrypted)
                 except Exception:
                     student_id = str(submission.id)[:8]
+            else:
+                student_id = str(submission.id)[:8]
 
             # Sanitize identifier (remove characters unsafe for paths)
             safe_student_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in student_id)

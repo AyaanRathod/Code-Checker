@@ -1,8 +1,9 @@
 import uuid
-from typing import List, Dict
+from typing import List, Dict, Optional
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Body
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 
 from app.core.database import get_db, AsyncSessionLocal
 from app.api.dependencies import get_current_user
@@ -19,10 +20,16 @@ from app.schemas.comparison_result import ComparisonResultCreate, ComparisonResu
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-async def perform_full_analysis(assignment_id: uuid.UUID):
+
+class AnalysisRequest(BaseModel):
+    repository_ids: Optional[List[uuid.UUID]] = None
+
+
+async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Optional[List[uuid.UUID]] = None):
     """
     Background worker function that performs an N x N comparison
-    of all active submissions in the assignment.
+    of all active submissions in the assignment, plus optional
+    cross-repo comparisons against selected repositories.
     """
     async with AsyncSessionLocal() as db:
         try:
@@ -35,6 +42,7 @@ async def perform_full_analysis(assignment_id: uuid.UUID):
             for sub in submissions:
                 # We fetch files
                 from sqlalchemy import select, delete
+                from sqlalchemy.orm import joinedload
                 from app.models.stored_file import StoredFile
                 result = await db.execute(select(StoredFile).where(StoredFile.submission_id == sub.id).order_by(StoredFile.storage_path))
                 files = list(result.scalars().all())
@@ -160,6 +168,102 @@ async def perform_full_analysis(assignment_id: uuid.UUID):
                         )
                         await comparison_result_repository.create(db, data)
 
+            # ---- Cross-repo comparisons ----
+            if repository_ids:
+                from app.models.repository import Repository
+                from app.models.repository_submission import RepositorySubmission
+
+                for repo_id in repository_ids:
+                    repo = await db.execute(select(Repository).where(Repository.id == repo_id))
+                    repo_obj = repo.scalars().first()
+                    if not repo_obj:
+                        continue
+
+                    # Fetch repo submissions with their files
+                    rs_query = await db.execute(
+                        select(RepositorySubmission)
+                        .options(joinedload(RepositorySubmission.stored_files))
+                        .where(RepositorySubmission.repository_id == repo_id)
+                    )
+                    repo_subs = rs_query.scalars().unique().all()
+
+                    # Fingerprint each repo submission
+                    repo_fingerprints = {}
+                    repo_file_names = {}
+
+                    for rs in repo_subs:
+                        combined_fp = []
+                        for file_idx, f in enumerate(rs.stored_files or []):
+                            fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
+                            repo_file_names[(rs.id, file_idx)] = fname
+                            try:
+                                if f.fingerprint_hash:
+                                    for fp_item in f.fingerprint_hash:
+                                        tagged = dict(fp_item)
+                                        tagged['file_index'] = file_idx
+                                        combined_fp.append(tagged)
+                                else:
+                                    code_bytes = storage_service.download_file(f.storage_path)
+                                    code_str = code_bytes.decode('utf-8')
+                                    fp = analysis_service.strip_and_fingerprint(code_str, lang)
+                                    for fp_item in fp:
+                                        fp_item['file_index'] = file_idx
+                                    combined_fp.extend(fp)
+                            except Exception:
+                                logger.exception("Error fingerprinting repo file", extra={"storage_path": f.storage_path})
+
+                        if boilerplate_hashes and combined_fp:
+                            combined_fp = scorer.remove_boilerplate(combined_fp, boilerplate_hashes)
+
+                        repo_fingerprints[rs.id] = combined_fp
+
+                    # Compare each current submission against each repo submission
+                    for sub in submissions:
+                        s_fp = fingerprints.get(sub.id, [])
+                        if not s_fp:
+                            continue
+
+                        for rs in repo_subs:
+                            t_fp = repo_fingerprints.get(rs.id, [])
+                            if not t_fp:
+                                continue
+
+                            score, ranges_a, ranges_b = analysis_service.calculate_similarity_score(s_fp, t_fp)
+
+                            if score > 0:
+                                s_file_ranges = defaultdict(list)
+                                for r in ranges_a:
+                                    s_file_ranges[r.get("file_index", 0)].append({"start": r["start"], "end": r["end"]})
+
+                                t_file_ranges = defaultdict(list)
+                                for r in ranges_b:
+                                    t_file_ranges[r.get("file_index", 0)].append({"start": r["start"], "end": r["end"]})
+
+                                source_files_meta = []
+                                for fi in sorted(s_file_ranges.keys()):
+                                    fname = sub_file_names.get((sub.id, fi), f"file_{fi}")
+                                    source_files_meta.append({"file_index": fi, "filename": fname, "ranges": s_file_ranges[fi]})
+
+                                target_files_meta = []
+                                for fi in sorted(t_file_ranges.keys()):
+                                    fname = repo_file_names.get((rs.id, fi), f"file_{fi}")
+                                    target_files_meta.append({"file_index": fi, "filename": fname, "ranges": t_file_ranges[fi]})
+
+                                metadata = {
+                                    "source_files": source_files_meta,
+                                    "target_files": target_files_meta,
+                                    "repo_name": repo_obj.name,
+                                    "repo_label": rs.label
+                                }
+                                data = ComparisonResultCreate(
+                                    source_submission_id=sub.id,
+                                    target_repo_submission_id=rs.id,
+                                    comparison_type="cross_repo",
+                                    similarity_score=score,
+                                    match_metadata=metadata
+                                )
+                                await comparison_result_repository.create(db, data)
+
             await db.commit()
         except Exception:
             await db.rollback()
@@ -169,11 +273,13 @@ async def perform_full_analysis(assignment_id: uuid.UUID):
 async def trigger_analysis(
     assignment_id: uuid.UUID,
     background_tasks: BackgroundTasks,
+    body: Optional[AnalysisRequest] = Body(None),
     db: AsyncSession = Depends(get_db),
     current_instructor: Instructor = Depends(get_current_user)
 ):
     """
     Starts the similarity analysis asynchronously.
+    Optionally accepts repository_ids to run cross-repo comparisons.
     """
     from sqlalchemy import select
     from app.models.assignment import Assignment
@@ -186,6 +292,11 @@ async def trigger_analysis(
     if not assignment:
         raise HTTPException(status_code=403, detail="Not authorized to analyze this assignment")
 
+    if assignment.status == "Archived":
+        raise HTTPException(status_code=400, detail="Cannot run analysis on an archived assignment")
+
+    repo_ids = body.repository_ids if body and body.repository_ids else None
+
     # Queue worker
-    background_tasks.add_task(perform_full_analysis, assignment_id)
+    background_tasks.add_task(perform_full_analysis, assignment_id, repo_ids)
     return {"message": "Analysis started in background"}

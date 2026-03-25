@@ -16,6 +16,8 @@ import app.models.submission
 import app.models.stored_file
 import app.models.comparison_result
 import app.models.boilerplate
+import app.models.repository
+import app.models.repository_submission
 
 
 settings = get_settings()
@@ -51,6 +53,34 @@ async def lifespan(app: FastAPI):
                     await conn.execute(text("DROP TABLE IF EXISTS instructors CASCADE"))
 
                 await conn.run_sync(Base.metadata.create_all)
+
+                # Schema migrations for existing tables (safe to re-run)
+                # 1. stored_files: make submission_id nullable, add repository_submission_id
+                await conn.execute(text("""
+                    ALTER TABLE stored_files ALTER COLUMN submission_id DROP NOT NULL
+                """))
+                await conn.execute(text("""
+                    DO $$ BEGIN
+                        ALTER TABLE stored_files ADD COLUMN repository_submission_id UUID REFERENCES repository_submissions(id) ON DELETE CASCADE;
+                    EXCEPTION WHEN duplicate_column THEN NULL;
+                    END $$
+                """))
+                # 2. comparison_results: make target_submission_id nullable, add cross-repo fields
+                await conn.execute(text("""
+                    ALTER TABLE comparison_results ALTER COLUMN target_submission_id DROP NOT NULL
+                """))
+                await conn.execute(text("""
+                    DO $$ BEGIN
+                        ALTER TABLE comparison_results ADD COLUMN target_repo_submission_id UUID REFERENCES repository_submissions(id) ON DELETE CASCADE;
+                    EXCEPTION WHEN duplicate_column THEN NULL;
+                    END $$
+                """))
+                await conn.execute(text("""
+                    DO $$ BEGIN
+                        ALTER TABLE comparison_results ADD COLUMN comparison_type VARCHAR(20) DEFAULT 'internal';
+                    EXCEPTION WHEN duplicate_column THEN NULL;
+                    END $$
+                """))
             break
         except Exception:
             if attempt == 4:

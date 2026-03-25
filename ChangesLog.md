@@ -2,6 +2,35 @@
 
 ## 2026-03-25
 
+- Assignment Archival System:
+  - Extended `effective_status()` in backend/app/api/v1/endpoints/instructor.py to auto-detect `Archived` status when deadline + 30 days has passed (read-time computation, no cron needed).
+  - Added `finalize_archive()` helper that: sets DB status to `Archived`, strips all PII (NULLs `student_name_encrypted` and `student_id_encrypted` on every submission), deletes all `ComparisonResult` rows, and auto-creates a `Repository` with linked `RepositorySubmission` entries from the archived submissions.
+  - Lazy archive finalization: triggered on first read after 30-day grace period, idempotent.
+  - Added `POST /api/v1/instructor/assignments/{id}/archive` manual archive endpoint with confirmation.
+  - Guarded existing endpoints: submissions list shows `REDACTED` for archived PII, download uses submission UUID for folder names, analysis trigger returns 400 for archived assignments.
+  - Dashboard split into Active Assignments and collapsible Archived Assignments section (purple badge, muted styling, no edit/analysis buttons, download-only).
+  - Closed assignments show an Archive icon button for early manual archival with irreversibility confirmation dialog.
+  - AssignmentDetails page hides analytics/pairwise/heatmap tabs and Run Analysis button for archived assignments.
+
+- Submission Repositories (cross-semester analysis):
+  - New `Repository` model (backend/app/models/repository.py): `id`, `instructor_id`, `name`, `language`, `source_assignment_id` (nullable, set when auto-created from archive), `submission_count`, `created_at`.
+  - New `RepositorySubmission` model (backend/app/models/repository_submission.py): `id`, `repository_id`, `label`.
+  - Added nullable `repository_submission_id` FK on `StoredFile` model so files can belong to either a submission or a repository submission.
+  - Added `comparison_type` (`internal`/`cross_repo`) and `target_repo_submission_id` fields on `ComparisonResult` model for cross-repo match tracking.
+  - New endpoint file: backend/app/api/v1/endpoints/repository.py with `GET /repositories/` (list), `POST /repositories/upload` (zip-of-zips upload + fingerprinting), `DELETE /repositories/{id}` (MinIO cleanup).
+  - Repository upload processes outer zip → each inner zip becomes a `RepositorySubmission` → each file inside gets uploaded to MinIO, fingerprinted, and stored as a `StoredFile`.
+  - New frontend page: frontend/src/pages/Repositories.tsx — manages repositories with upload modal, delete button, cards showing name/language/count/date.
+  - Dashboard nav bar now includes "Repositories" link.
+  - Route added: `/instructor/repositories`.
+
+- Cross-Repository Analysis:
+  - Extended `perform_full_analysis()` in backend/app/api/v1/endpoints/analysis.py to accept optional `repository_ids`. After N×N internal comparison, also compares each current submission against every repository submission in selected repos.
+  - Analysis trigger endpoint `POST /analysis/{id}/run` now accepts optional JSON body `{ "repository_ids": [...] }`.
+  - Comparisons listing endpoint now handles both `internal` and `cross_repo` results, displaying repo name and label for cross-repo targets.
+  - Comparison detail endpoint handles cross-repo comparisons by loading target files from `repository_submission_id` instead of `target_submission_id`.
+  - Run Analysis button now has a split-button dropdown (when repositories exist): "Internal Analysis Only" or "Compare Against Repositories..." which opens a modal with checkbox selection.
+  - Pairwise Similarities table shows a purple `REPO` badge next to cross-repo target entries.
+
 - Updated logic for "Download Submissions" in `AssignmentDetails` to generate `.zip` file of nested `.zip`s:
   - backend/app/api/v1/endpoints/instructor.py `download_submissions` endpoint now creates a main `.zip` archive per assignment which contains an inner `.zip` file for every individual student instead of loose folders.
 - Submissions overview tab in AssignmentDetails:

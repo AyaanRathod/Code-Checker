@@ -6,8 +6,10 @@ from app.schemas.base import ORMBaseModel
 
 class ComparisonResultBase(ORMBaseModel):
     source_submission_id: UUID
-    target_submission_id: UUID
-    similarity_score: float # Pydantic often converts float to Decimal if needed, Decimal(5,2) in DB
+    target_submission_id: Optional[UUID] = None
+    target_repo_submission_id: Optional[UUID] = None
+    comparison_type: str = "internal"
+    similarity_score: float
 
 class ComparisonResultCreate(ComparisonResultBase):
     match_metadata: Optional[dict] = None

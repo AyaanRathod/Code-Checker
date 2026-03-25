@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, ChevronRight, BookOpen, Plus, X, Key, ShieldCheck, Clock, Upload, Pencil } from 'lucide-react';
+import { LogOut, ChevronRight, BookOpen, Plus, X, Key, ShieldCheck, Clock, Upload, Pencil, Archive, ChevronDown, Download } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -74,6 +74,21 @@ const Dashboard: React.FC = () => {
     setBoilerplateFile(null);
     setCreateError('');
     setIsModalOpen(true);
+  };
+
+  const handleArchive = async (assignmentId: string) => {
+    if (!window.confirm('Are you sure you want to archive this assignment?\n\nThis action is IRREVERSIBLE. All student identities (names and IDs) will be permanently deleted. Code files will be preserved for future repository comparisons.')) {
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      await axios.post(`http://localhost:8000/api/v1/instructor/assignments/${assignmentId}/archive`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchAssignments();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to archive assignment.');
+    }
   };
 
   const openEditModal = (assignment: any) => {
@@ -250,9 +265,14 @@ const Dashboard: React.FC = () => {
           <ShieldCheck size={18} />
           <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Instructor View</span>
         </div>
-        <button onClick={handleLogout} className="btn btn-outline" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
-          <LogOut size={14} /> Logout
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button onClick={() => navigate('/instructor/repositories')} className="btn btn-outline" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
+            <Archive size={14} /> Repositories
+          </button>
+          <button onClick={handleLogout} className="btn btn-outline" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
+            <LogOut size={14} /> Logout
+          </button>
+        </div>
       </nav>
 
       <main style={{ padding: '3rem 2.5rem', maxWidth: '1200px', margin: '0 auto', width: '100%', flex: 1 }}>
@@ -275,95 +295,209 @@ const Dashboard: React.FC = () => {
              <p style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>Click "New Assignment" to start accepting student code submissions.</p>
            </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem' }}>
-            {assignments.map((assignment, i) => (
-              <motion.div 
-                key={assignment.id}
-                className="glass-card"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: i * 0.05 }}
-                style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                  <div style={{ padding: '0.25rem 0.6rem', background: 'var(--bg-surface-highest)', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <BookOpen size={12} /> {assignment.course}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <button
-                      onClick={(e) => { e.preventDefault(); openEditModal(assignment); }}
-                      title="Edit assignment"
-                      style={{
-                        background: 'transparent',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: 'var(--radius-sm)',
-                        padding: '0.3rem',
-                        cursor: 'pointer',
-                        color: 'var(--text-tertiary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        transition: 'all 0.15s ease'
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--brand-red)'; e.currentTarget.style.borderColor = 'var(--brand-red)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <span style={{
-                      fontSize: '0.7rem',
-                      padding: '0.25rem 0.6rem',
-                      borderRadius: 'var(--radius-sm)',
-                      background: assignment.status === 'Closed' ? '#f1f5f9' : '#ecfdf5',
-                      color: assignment.status === 'Closed' ? '#64748b' : '#059669',
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px'
-                    }}>
-                      {assignment.status}
-                    </span>
-                  </div>
+          <>
+            {/* Active Assignments (Open + Closed) */}
+            {(() => {
+              const active = assignments.filter(a => a.status !== 'Archived');
+              if (active.length === 0) return null;
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem' }}>
+                  {active.map((assignment, i) => (
+                    <ActiveAssignmentCard key={assignment.id} assignment={assignment} index={i} formatDeadline={formatDeadline} openEditModal={openEditModal} onArchive={handleArchive} />
+                  ))}
                 </div>
-                
-                <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>{assignment.title}</h3>
-                
-                <div style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Key size={14} color="var(--brand-red)" /> 
-                    <span style={{ fontFamily: 'var(--font-mono)' }}>{assignment.access_key}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Clock size={14} color="var(--text-tertiary)" /> 
-                    <span>Due: {formatDeadline(assignment.deadline)}</span>
-                  </div>
-                </div>
-                
-                <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
-                  <div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{assignment.count}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Submissions</div>
-                  </div>
-                  {assignment.flags > 0 && (
-                    <div>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: '#dc2626' }}>{assignment.flags}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>High Risk</div>
-                    </div>
-                  )}
-                </div>
+              );
+            })()}
 
-                <Link 
-                  to={`/instructor/assignment/${assignment.id}`} 
-                  className="btn btn-outline" 
-                  style={{ width: '100%', marginTop: 'auto', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-surface-raised)' }}
-                >
-                  View Details <ChevronRight size={16} />
-                </Link>
-              </motion.div>
-            ))}
-          </div>
+            {/* Archived Assignments */}
+            {(() => {
+              const archived = assignments.filter(a => a.status === 'Archived');
+              if (archived.length === 0) return null;
+              return (
+                <ArchivedSection assignments={archived} formatDeadline={formatDeadline} navigate={navigate} />
+              );
+            })()}
+          </>
         )}
       </main>
     </div>
   );
 };
+
+// --- Sub-components ---
+
+const ActiveAssignmentCard: React.FC<{ assignment: any; index: number; formatDeadline: (d: string) => string; openEditModal: (a: any) => void; onArchive: (id: string) => void }> = ({ assignment, index, formatDeadline, openEditModal, onArchive }) => {
+  const statusColor = assignment.status === 'Closed' ? { bg: '#f1f5f9', fg: '#64748b' } : { bg: '#ecfdf5', fg: '#059669' };
+
+  return (
+    <motion.div
+      className="glass-card"
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: index * 0.05 }}
+      style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+        <div style={{ padding: '0.25rem 0.6rem', background: 'var(--bg-surface-highest)', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <BookOpen size={12} /> {assignment.course}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button
+            onClick={(e) => { e.preventDefault(); openEditModal(assignment); }}
+            title="Edit assignment"
+            style={{ background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', padding: '0.3rem', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', transition: 'all 0.15s ease' }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--brand-red)'; e.currentTarget.style.borderColor = 'var(--brand-red)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+          >
+            <Pencil size={13} />
+          </button>
+          {assignment.status === 'Closed' && (
+            <button
+              onClick={(e) => { e.preventDefault(); onArchive(assignment.id); }}
+              title="Archive assignment"
+              style={{ background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', padding: '0.3rem', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', transition: 'all 0.15s ease' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.borderColor = '#6366f1'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+            >
+              <Archive size={13} />
+            </button>
+          )}
+          <span style={{ fontSize: '0.7rem', padding: '0.25rem 0.6rem', borderRadius: 'var(--radius-sm)', background: statusColor.bg, color: statusColor.fg, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            {assignment.status}
+          </span>
+        </div>
+      </div>
+
+      <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>{assignment.title}</h3>
+
+      <div style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Key size={14} color="var(--brand-red)" />
+          <span style={{ fontFamily: 'var(--font-mono)' }}>{assignment.access_key}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Clock size={14} color="var(--text-tertiary)" />
+          <span>Due: {formatDeadline(assignment.deadline)}</span>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
+        <div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{assignment.count}</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Submissions</div>
+        </div>
+        {assignment.flags > 0 && (
+          <div>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: '#dc2626' }}>{assignment.flags}</div>
+            <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: 600 }}>High Risk</div>
+          </div>
+        )}
+      </div>
+
+      <Link
+        to={`/instructor/assignment/${assignment.id}`}
+        className="btn btn-outline"
+        style={{ width: '100%', marginTop: 'auto', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-surface-raised)' }}
+      >
+        View Details <ChevronRight size={16} />
+      </Link>
+    </motion.div>
+  );
+};
+
+
+const ArchivedSection: React.FC<{ assignments: any[]; formatDeadline: (d: string) => string; navigate: (path: string) => void }> = ({ assignments, formatDeadline, navigate }) => {
+  const [expanded, setExpanded] = React.useState(false);
+
+  return (
+    <div style={{ marginTop: '3rem' }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'transparent', border: 'none',
+          cursor: 'pointer', padding: '0.5rem 0', marginBottom: '1rem', width: '100%', textAlign: 'left'
+        }}
+      >
+        <Archive size={18} style={{ color: 'var(--text-tertiary)' }} />
+        <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+          Archived Assignments
+        </span>
+        <span style={{ fontSize: '0.8rem', background: 'var(--bg-surface-highest)', padding: '0.15rem 0.6rem', borderRadius: 'var(--radius-full)', color: 'var(--text-tertiary)', fontWeight: 600 }}>
+          {assignments.length}
+        </span>
+        <ChevronDown
+          size={16}
+          style={{
+            marginLeft: 'auto',
+            color: 'var(--text-tertiary)',
+            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s ease'
+          }}
+        />
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem' }}>
+              {assignments.map((assignment, i) => (
+                <motion.div
+                  key={assignment.id}
+                  className="glass-card"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25, delay: i * 0.04 }}
+                  style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', opacity: 0.85 }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                    <div style={{ padding: '0.25rem 0.6rem', background: 'var(--bg-surface-highest)', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <BookOpen size={12} /> {assignment.course}
+                    </div>
+                    <span style={{ fontSize: '0.7rem', padding: '0.25rem 0.6rem', borderRadius: 'var(--radius-sm)', background: '#ede9fe', color: '#7c3aed', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Archived
+                    </span>
+                  </div>
+
+                  <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>{assignment.title}</h3>
+
+                  <div style={{ padding: '0.5rem 0', display: 'flex', flexDirection: 'column', gap: '0.4rem', color: 'var(--text-tertiary)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Clock size={14} />
+                      <span>Closed: {formatDeadline(assignment.deadline)}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1.25rem' }}>
+                    <div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{assignment.count}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Submissions</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: 'auto' }}>
+                    <button
+                      onClick={() => navigate(`/instructor/assignment/${assignment.id}`)}
+                      className="btn btn-outline"
+                      style={{ flex: 1, display: 'flex', justifyContent: 'space-between', background: 'var(--bg-surface-raised)' }}
+                    >
+                      View Details <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 
 export default Dashboard;

@@ -6,13 +6,14 @@ import InstructorLogin from './pages/InstructorLogin';
 import Dashboard from './pages/Dashboard';
 import AssignmentDetails from './pages/AssignmentDetails';
 import ComparisonView from './pages/ComparisonView';
+import Repositories from './pages/Repositories';
 
 import './index.css';
 
 const GlobalHeader = () => {
   const location = useLocation();
   // Hide header on detail pages since they have their own navigation
-  if (location.pathname.includes('/assignment/') || location.pathname.includes('/compare/')) {
+  if (location.pathname.includes('/assignment/') || location.pathname.includes('/compare/') || location.pathname.includes('/repositories')) {
     return null;
   }
   
@@ -51,6 +52,7 @@ const AppContent = () => {
         <Route path="/instructor/dashboard" element={<Dashboard />} />
         <Route path="/instructor/assignment/:id" element={<AssignmentDetails />} />
         <Route path="/instructor/compare/:comparison_id" element={<ComparisonView />} />
+        <Route path="/instructor/repositories" element={<Repositories />} />
         
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
