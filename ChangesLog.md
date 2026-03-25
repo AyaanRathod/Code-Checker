@@ -1,6 +1,24 @@
 # Changes Log
 
+## 2026-03-25
+
+- Submissions overview tab in AssignmentDetails:
+  - Added GET /api/v1/instructor/assignments/{assignment_id}/submissions endpoint in backend/app/api/v1/endpoints/instructor.py. Returns a privacy-safe list of submissions with masked student ID, timestamp, attempt number, file count, total lines, total bytes, status, and flagged state.
+  - Added "Submissions" tab as the first sidebar item in frontend/src/pages/AssignmentDetails.tsx (above Analytics Overview). Includes summary stat cards (total submissions, total files, total lines of code, latest submission time) and a detailed table showing each submission row with masked ID, submission time (GMT-4), attempt number, file count, line count, human-readable size, and status badge. Default active tab on page load.
+
 ## 2026-03-24
+
+- Reveal Identity shows student name alongside student ID:
+  - backend/app/api/v1/endpoints/instructor.py comparison detail endpoint now decrypts `student_name_encrypted` and returns `source_student_name` / `target_student_name` in the response.
+  - frontend/src/pages/ComparisonView.tsx "Reveal Identities" now displays the student's full name above their student ID on each panel header (e.g. "John Smith" on top, "1234567" below in mono font).
+
+- Multi-file analysis and comparison view:
+  - backend/app/api/v1/endpoints/analysis.py now tags each fingerprint with a `file_index` identifying which file it came from. Fingerprints from all files in a zip submission are combined for scoring, but match ranges are grouped per-file in `match_metadata` as `{ "source_files": [{"file_index", "filename", "ranges"}], "target_files": [...] }`.
+  - backend/app/analysis/scorer.py `calculate_similarity()` now includes `file_index` in returned match range dicts so ranges can be attributed to specific files.
+  - Added `ORDER BY storage_path` to stored file queries in both analysis.py and instructor.py to guarantee deterministic file ordering.
+  - backend/app/api/v1/endpoints/instructor.py comparison detail endpoint now downloads ALL files for each submission (not just the first), attaches per-file match ranges from metadata, and returns `source_files` / `target_files` arrays alongside the backward-compat `source_code` / `target_code` fields.
+  - frontend/src/pages/ComparisonView.tsx now renders file tabs above each code panel when a submission has multiple files. Each tab shows the filename and a match count badge. Switching tabs updates the highlighted code view with that file's specific match ranges. Single-file submissions render without tabs (unchanged UX).
+  - Fixed duplicate `return response_data` in `get_comparisons` endpoint.
 
 - Download all submissions as zip:
   - Added GET /api/v1/instructor/assignments/{assignment_id}/download endpoint in backend/app/api/v1/endpoints/instructor.py.

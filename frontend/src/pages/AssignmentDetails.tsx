@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, AlertTriangle, CheckCircle, Search, Download, BookOpen, Clock, FileWarning, LayoutDashboard, Database, Activity, GitCommit, Archive } from 'lucide-react';
+import { ArrowLeft, Play, AlertTriangle, CheckCircle, Search, Download, BookOpen, Clock, FileWarning, LayoutDashboard, Database, Activity, GitCommit, Archive, Users, FileCode, Hash, Flag } from 'lucide-react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 
-type TabView = 'overview' | 'results' | 'clusters';
+type TabView = 'submissions' | 'overview' | 'results' | 'clusters';
 
 const AssignmentDetails: React.FC = () => {
   const { id } = useParams();
@@ -14,19 +14,22 @@ const AssignmentDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabView>('overview');
+  const [activeTab, setActiveTab] = useState<TabView>('submissions');
+  const [submissions, setSubmissions] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchDetails = async () => {
       const token = localStorage.getItem('token');
       try {
-        const [assnRes, compRes] = await Promise.all([
+        const [assnRes, compRes, subRes] = await Promise.all([
           axios.get(`http://localhost:8000/api/v1/instructor/assignments/${id}`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`http://localhost:8000/api/v1/instructor/assignments/${id}/comparisons`, { headers: { Authorization: `Bearer ${token}` } })
+          axios.get(`http://localhost:8000/api/v1/instructor/assignments/${id}/comparisons`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`http://localhost:8000/api/v1/instructor/assignments/${id}/submissions`, { headers: { Authorization: `Bearer ${token}` } })
         ]);
 
         setAssignment(assnRes.data);
         setComparisons(compRes.data);
+        setSubmissions(subRes.data);
       } catch (err) {
         console.error(err);
         alert("Failed to fetch assignment details.");
@@ -178,6 +181,18 @@ const AssignmentDetails: React.FC = () => {
            <h3 style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.5rem', paddingLeft: '0.75rem' }}>Reports Engine</h3>
 
            <button
+             onClick={() => setActiveTab('submissions')}
+             className={`sidebar-tab ${activeTab === 'submissions' ? 'active' : ''}`}
+           >
+             <Users size={18} /> Submissions
+             {submissions.length > 0 && (
+               <span style={{ marginLeft: 'auto', fontSize: '0.75rem', background: 'var(--bg-surface)', padding: '0.1rem 0.5rem', borderRadius: 'var(--radius-full)', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                 {submissions.length}
+               </span>
+             )}
+           </button>
+
+           <button
              onClick={() => setActiveTab('overview')}
              className={`sidebar-tab ${activeTab === 'overview' ? 'active' : ''}`}
            >
@@ -201,6 +216,133 @@ const AssignmentDetails: React.FC = () => {
 
         {/* Right Content Area */}
         <div style={{ flex: 1, padding: '1.5rem 2rem', overflowY: 'auto' }}>
+
+            <AnimateTab tab={activeTab} target="submissions">
+               <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>Submissions</h2>
+
+               {/* Summary Stats */}
+               {(() => {
+                 const totalSubs = submissions.length;
+                 const totalFiles = submissions.reduce((sum: number, s: any) => sum + (s.file_count || 0), 0);
+                 const totalLines = submissions.reduce((sum: number, s: any) => sum + (s.total_lines || 0), 0);
+                 const latestTime = totalSubs > 0 ? submissions[0].timestamp : null;
+
+                 return (
+                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                     <div className="glass-card" style={{ padding: '1rem', borderTop: '4px solid var(--brand-secondary)' }}>
+                       <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                         <Users size={14} /> Total Submissions
+                       </span>
+                       <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{totalSubs}</span>
+                     </div>
+
+                     <div className="glass-card" style={{ padding: '1rem', borderTop: '4px solid #6366f1' }}>
+                       <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                         <FileCode size={14} /> Total Files
+                       </span>
+                       <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{totalFiles}</span>
+                     </div>
+
+                     <div className="glass-card" style={{ padding: '1rem', borderTop: '4px solid #10b981' }}>
+                       <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                         <Hash size={14} /> Total Lines of Code
+                       </span>
+                       <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{totalLines.toLocaleString()}</span>
+                     </div>
+
+                     {latestTime && (
+                       <div className="glass-card" style={{ padding: '1rem', borderTop: '4px solid #f59e0b' }}>
+                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                           <Clock size={14} /> Latest Submission
+                         </span>
+                         <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                           {new Date(latestTime).toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })}{' '}
+                           {new Date(latestTime).toLocaleTimeString('en-CA', { timeZone: 'America/Toronto', hour: '2-digit', minute: '2-digit' })}
+                         </span>
+                         <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>(GMT-4)</span>
+                       </div>
+                     )}
+                   </div>
+                 );
+               })()}
+
+               {/* Submissions Table */}
+               <div className="glass-card" style={{ padding: '0', overflowX: 'auto' }}>
+                 {submissions.length === 0 ? (
+                   <div style={{ textAlign: 'center', padding: '4rem 1rem', color: 'var(--text-secondary)' }}>
+                     <Users size={48} style={{ margin: '0 auto 1rem auto', opacity: 0.3 }} />
+                     <h3 style={{ marginBottom: '0.5rem' }}>No Submissions Yet</h3>
+                     <p style={{ fontSize: '0.9rem' }}>Students haven't submitted any files for this assignment yet.</p>
+                   </div>
+                 ) : (
+                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                     <thead>
+                       <tr style={{ borderBottom: '2px solid var(--border-subtle)', background: 'var(--bg-surface-raised)', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                         <th style={{ padding: '1rem', fontWeight: 600 }}>#</th>
+                         <th style={{ padding: '1rem', fontWeight: 600 }}>Student ID</th>
+                         <th style={{ padding: '1rem', fontWeight: 600 }}>Submitted</th>
+                         <th style={{ padding: '1rem', fontWeight: 600 }}>Attempt</th>
+                         <th style={{ padding: '1rem', fontWeight: 600 }}>Files</th>
+                         <th style={{ padding: '1rem', fontWeight: 600 }}>Lines</th>
+                         <th style={{ padding: '1rem', fontWeight: 600 }}>Size</th>
+                         <th style={{ padding: '1rem', fontWeight: 600 }}>Status</th>
+                       </tr>
+                     </thead>
+                     <tbody>
+                       {submissions.map((s: any, i: number) => {
+                         const formatBytes = (bytes: number) => {
+                           if (bytes < 1024) return `${bytes} B`;
+                           if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+                           return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+                         };
+
+                         return (
+                           <tr
+                             key={s.id}
+                             style={{ borderBottom: '1px solid var(--border-subtle)', transition: 'background var(--transition-fast)' }}
+                             className="table-row-hover"
+                           >
+                             <td style={{ padding: '1rem', color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>{i + 1}</td>
+                             <td style={{ padding: '1rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', fontWeight: 600 }}>
+                               {s.masked_student_id}
+                               {s.is_flagged && (
+                                 <Flag size={13} style={{ marginLeft: '0.5rem', color: '#dc2626', verticalAlign: 'middle' }} />
+                               )}
+                             </td>
+                             <td style={{ padding: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                               {s.timestamp ? (
+                                 <>
+                                   {new Date(s.timestamp).toLocaleDateString('en-CA', { timeZone: 'America/Toronto' })}{' '}
+                                   <span style={{ color: 'var(--text-tertiary)' }}>
+                                     {new Date(s.timestamp).toLocaleTimeString('en-CA', { timeZone: 'America/Toronto', hour: '2-digit', minute: '2-digit' })}
+                                   </span>
+                                 </>
+                               ) : '—'}
+                             </td>
+                             <td style={{ padding: '1rem', fontSize: '0.85rem', textAlign: 'center' }}>{s.attempt_number}</td>
+                             <td style={{ padding: '1rem', fontSize: '0.85rem', fontFamily: 'var(--font-mono)' }}>{s.file_count}</td>
+                             <td style={{ padding: '1rem', fontSize: '0.85rem', fontFamily: 'var(--font-mono)' }}>{s.total_lines.toLocaleString()}</td>
+                             <td style={{ padding: '1rem', fontSize: '0.85rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{formatBytes(s.total_bytes)}</td>
+                             <td style={{ padding: '1rem' }}>
+                               <span style={{
+                                 padding: '0.2rem 0.6rem',
+                                 borderRadius: 'var(--radius-full)',
+                                 fontSize: '0.75rem',
+                                 fontWeight: 600,
+                                 background: s.status === 'Active' ? '#ecfdf5' : '#f1f5f9',
+                                 color: s.status === 'Active' ? '#059669' : '#64748b'
+                               }}>
+                                 {s.status}
+                               </span>
+                             </td>
+                           </tr>
+                         );
+                       })}
+                     </tbody>
+                   </table>
+                 )}
+               </div>
+            </AnimateTab>
 
             <AnimateTab tab={activeTab} target="overview">
                <h2 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>Analytics Overview</h2>

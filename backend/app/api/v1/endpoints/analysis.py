@@ -36,7 +36,7 @@ async def perform_full_analysis(assignment_id: uuid.UUID):
                 # We fetch files
                 from sqlalchemy import select, delete
                 from app.models.stored_file import StoredFile
-                result = await db.execute(select(StoredFile).where(StoredFile.submission_id == sub.id))
+                result = await db.execute(select(StoredFile).where(StoredFile.submission_id == sub.id).order_by(StoredFile.storage_path))
                 files = list(result.scalars().all())
                 sub_files[sub.id] = files
 
@@ -69,17 +69,27 @@ async def perform_full_analysis(assignment_id: uuid.UUID):
             # We pull code down from MinIO, fingerprint, store fingerprints in memory
             # Then we compare them.
             fingerprints = {}
+            # Track (submission_id, file_index) -> filename for per-file metadata
+            sub_file_names = {}
 
             for sid, files in sub_files.items():
                 combined_fp = []
-                for f in files:
+                for file_idx, f in enumerate(files):
+                    # Extract filename from storage_path
+                    fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
+                    sub_file_names[(sid, file_idx)] = fname
                     try:
                         if f.fingerprint_hash:
-                            combined_fp.extend(f.fingerprint_hash)
+                            for fp_item in f.fingerprint_hash:
+                                tagged = dict(fp_item)
+                                tagged['file_index'] = file_idx
+                                combined_fp.append(tagged)
                         else:
                             code_bytes = storage_service.download_file(f.storage_path)
                             code_str = code_bytes.decode('utf-8')
                             fp = analysis_service.strip_and_fingerprint(code_str, lang)
+                            for fp_item in fp:
+                                fp_item['file_index'] = file_idx
                             combined_fp.extend(fp)
                     except Exception:
                         logger.exception("Error downloading/parsing stored file", extra={"storage_path": f.storage_path})
@@ -101,6 +111,8 @@ async def perform_full_analysis(assignment_id: uuid.UUID):
                 )
             )
 
+            from collections import defaultdict
+
             sub_ids = list(submissions)
             for i in range(len(sub_ids)):
                 for j in range(i + 1, len(sub_ids)):
@@ -117,9 +129,28 @@ async def perform_full_analysis(assignment_id: uuid.UUID):
 
                     # Create DB record if score > 0 (or some threshold) to save space
                     if score > 0:
+                        # Group match ranges by file_index for per-file metadata
+                        s_file_ranges = defaultdict(list)
+                        for r in ranges_a:
+                            s_file_ranges[r.get("file_index", 0)].append({"start": r["start"], "end": r["end"]})
+
+                        t_file_ranges = defaultdict(list)
+                        for r in ranges_b:
+                            t_file_ranges[r.get("file_index", 0)].append({"start": r["start"], "end": r["end"]})
+
+                        source_files_meta = []
+                        for fi in sorted(s_file_ranges.keys()):
+                            fname = sub_file_names.get((source.id, fi), f"file_{fi}")
+                            source_files_meta.append({"file_index": fi, "filename": fname, "ranges": s_file_ranges[fi]})
+
+                        target_files_meta = []
+                        for fi in sorted(t_file_ranges.keys()):
+                            fname = sub_file_names.get((target.id, fi), f"file_{fi}")
+                            target_files_meta.append({"file_index": fi, "filename": fname, "ranges": t_file_ranges[fi]})
+
                         metadata = {
-                            "source_ranges": ranges_a,
-                            "target_ranges": ranges_b
+                            "source_files": source_files_meta,
+                            "target_files": target_files_meta
                         }
                         data = ComparisonResultCreate(
                             source_submission_id=source.id,

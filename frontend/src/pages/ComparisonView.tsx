@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, AlertOctagon, Unlock, ChevronLeft, ChevronRight, LocateFixed, Info, Download } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertOctagon, Unlock, ChevronLeft, ChevronRight, LocateFixed, Info, Download, FileCode } from 'lucide-react';
 import axios from 'axios';
+
+interface FileEntry {
+  filename: string;
+  code: string;
+  ranges: { start: number; end: number }[];
+}
 
 const ComparisonView: React.FC = () => {
   const { comparison_id } = useParams();
@@ -9,9 +15,13 @@ const ComparisonView: React.FC = () => {
   const [revealed, setRevealed] = useState(false);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
+
   // Track the CURRENTLY focused match block
   const [activeBlockId, setActiveBlockId] = useState<number | null>(0);
+
+  // Multi-file tab state
+  const [sourceFileIdx, setSourceFileIdx] = useState(0);
+  const [targetFileIdx, setTargetFileIdx] = useState(0);
 
   useEffect(() => {
     const fetchComparison = async () => {
@@ -36,24 +46,47 @@ const ComparisonView: React.FC = () => {
     fetchComparison();
   }, [comparison_id]);
 
+  // Build file arrays from response (with backward compat fallback)
+  const sourceFiles: FileEntry[] = useMemo(() => {
+    if (!data) return [];
+    if (data.source_files && data.source_files.length > 0) return data.source_files;
+    // Fallback for old metadata format
+    return [{ filename: 'source', code: data.source_code || '', ranges: data.metadata?.source_ranges || [] }];
+  }, [data]);
+
+  const targetFiles: FileEntry[] = useMemo(() => {
+    if (!data) return [];
+    if (data.target_files && data.target_files.length > 0) return data.target_files;
+    return [{ filename: 'target', code: data.target_code || '', ranges: data.metadata?.target_ranges || [] }];
+  }, [data]);
+
+  // Reset tab index and active block when data changes
+  useEffect(() => {
+    setSourceFileIdx(0);
+    setTargetFileIdx(0);
+    setActiveBlockId(0);
+  }, [data]);
+
   // -------------------------------------------------------------------------
-  // Process Data & Maps
+  // Process Data & Maps — recalculates when active file tabs change
   // -------------------------------------------------------------------------
   const parsedData = useMemo(() => {
     if (!data) return null;
-    const { source_code, target_code, metadata } = data;
-    
+    const currentSource = sourceFiles[sourceFileIdx];
+    const currentTarget = targetFiles[targetFileIdx];
+    if (!currentSource || !currentTarget) return null;
+
     const getHighlightedLines = (code: string, ranges: {start: number, end: number}[]) => {
       const lines = new Set<number>();
       if (!ranges || !code) return lines;
-      
+
       let currentLine = 0;
       const charToLine: number[] = [];
       for (let i = 0; i < code.length; i++) {
           charToLine[i] = currentLine;
           if (code[i] === '\n') currentLine++;
       }
-      
+
       ranges.forEach(r => {
           const startLine = charToLine[Math.min(r.start, code.length - 1)] || 0;
           const endLine = charToLine[Math.min(r.end, code.length - 1)] || 0;
@@ -66,9 +99,9 @@ const ComparisonView: React.FC = () => {
 
     const getLineToBlockMap = (linesSet: Set<number>) => {
         const sorted = Array.from(linesSet).sort((a,b)=>a-b);
-        const lineMap = new Map<number, number>(); 
+        const lineMap = new Map<number, number>();
         let blockIdx = 0;
-        
+
         for (let i = 0; i < sorted.length; i++) {
             if (i > 0 && sorted[i] > sorted[i-1] + 2) {
                blockIdx++;
@@ -78,19 +111,19 @@ const ComparisonView: React.FC = () => {
         return lineMap;
     };
 
-    const sLines = getHighlightedLines(source_code, metadata?.source_ranges || []);
-    const tLines = getHighlightedLines(target_code, metadata?.target_ranges || []);
-    
+    const sLines = getHighlightedLines(currentSource.code, currentSource.ranges || []);
+    const tLines = getHighlightedLines(currentTarget.code, currentTarget.ranges || []);
+
     const sMap = getLineToBlockMap(sLines);
     const tMap = getLineToBlockMap(tLines);
-    
+
     const total = Math.max(
         sMap.size > 0 ? Math.max(...Array.from(sMap.values())) + 1 : 0,
         tMap.size > 0 ? Math.max(...Array.from(tMap.values())) + 1 : 0
     );
 
     return { sMap, tMap, totalBlocks: total };
-  }, [data]);
+  }, [data, sourceFiles, targetFiles, sourceFileIdx, targetFileIdx]);
 
   if (loading) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Loading comparison...</div>;
   if (!data || !parsedData) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Comparison not found.</div>;
@@ -99,9 +132,12 @@ const ComparisonView: React.FC = () => {
     score = 0,
     source_student_decrypted = 'Student_Hidden',
     target_student_decrypted = 'Student_Hidden',
-    source_code = '',
-    target_code = ''
+    source_student_name = '',
+    target_student_name = '',
   } = data || {};
+
+  const currentSourceCode = sourceFiles[sourceFileIdx]?.code || '';
+  const currentTargetCode = targetFiles[targetFileIdx]?.code || '';
   const { sMap, tMap, totalBlocks } = parsedData;
 
   const maskIdentity = (id: string) => {
@@ -115,14 +151,14 @@ const ComparisonView: React.FC = () => {
   const scrollToBlock = (blockId: number, targetPanel: 'source' | 'target') => {
       const mapToSearch = targetPanel === 'source' ? sMap : tMap;
       let targetLineIdx = -1;
-      
+
       for (const [lineIdx, bId] of mapToSearch.entries()) {
           if (bId === blockId) {
               targetLineIdx = lineIdx;
               break;
           }
       }
-      
+
       if (targetLineIdx !== -1) {
           const el = document.getElementById(`${targetPanel}-line-${targetLineIdx}`);
           if (el) {
@@ -171,36 +207,93 @@ const ComparisonView: React.FC = () => {
   // Modern UI Colors for Highlight States (Light Theme)
   const ACTIVE_MATCH_BG = 'rgba(234, 179, 8, 0.35)'; // Yellow highlight
   const ACTIVE_MATCH_BORDER = '#ca8a04';
-  
+
   const INACTIVE_MATCH_BG = 'rgba(170, 0, 0, 0.05)'; // Subtle Brock Red
   const INACTIVE_MATCH_BORDER = 'rgba(170, 0, 0, 0.2)';
 
   const getStyleForLine = (lineIdx: number, map: Map<number, number>) => {
       if (!map.has(lineIdx)) return { bg: 'transparent', border: 'transparent', blockId: -1, isActive: false };
-      
+
       const blockId = map.get(lineIdx)!;
       const isActive = blockId === activeBlockId;
-      
-      return { 
-        bg: isActive ? ACTIVE_MATCH_BG : INACTIVE_MATCH_BG, 
+
+      return {
+        bg: isActive ? ACTIVE_MATCH_BG : INACTIVE_MATCH_BG,
         border: isActive ? ACTIVE_MATCH_BORDER : INACTIVE_MATCH_BORDER,
         blockId,
         isActive
       };
   };
 
+  // Count how many files have matches for a badge
+  const countFileMatches = (files: FileEntry[]) => files.filter(f => f.ranges && f.ranges.length > 0).length;
+
+  // File tab bar component
+  const FileTabBar = ({ files, activeIdx, onSelect, side }: { files: FileEntry[]; activeIdx: number; onSelect: (i: number) => void; side: string }) => {
+    if (files.length <= 1) return null;
+    return (
+      <div style={{
+        display: 'flex', gap: '0', borderBottom: '1px solid var(--border-subtle)',
+        background: 'var(--bg-surface)', overflowX: 'auto', flexShrink: 0
+      }}>
+        {files.map((f, i) => {
+          const hasMatches = f.ranges && f.ranges.length > 0;
+          const isActive = i === activeIdx;
+          return (
+            <button
+              key={`${side}-tab-${i}`}
+              onClick={() => { onSelect(i); setActiveBlockId(0); }}
+              style={{
+                padding: '0.5rem 1rem',
+                fontSize: '0.8rem',
+                fontFamily: 'var(--font-mono)',
+                background: isActive ? 'var(--bg-surface)' : 'var(--bg-surface-raised)',
+                border: 'none',
+                borderBottom: isActive ? '2px solid var(--brand-red)' : '2px solid transparent',
+                color: isActive ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                whiteSpace: 'nowrap',
+                fontWeight: isActive ? 600 : 400,
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <FileCode size={13} />
+              {f.filename}
+              {hasMatches && (
+                <span style={{
+                  fontSize: '0.65rem',
+                  padding: '1px 5px',
+                  borderRadius: '8px',
+                  background: isActive ? 'rgba(170, 0, 0, 0.1)' : 'rgba(170, 0, 0, 0.06)',
+                  color: 'var(--brand-red)',
+                  fontWeight: 600,
+                  fontFamily: 'var(--font-sans)'
+                }}>
+                  {f.ranges.length}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="main-content" style={{ display: 'flex', flexDirection: 'column', position: 'relative', flex: 1 }}>
-      
+
       {/* Top Navigation & Status Header */}
       <div style={{ padding: '1.25rem 2.5rem', background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
-        
+
         {/* Top row: Back button & identities */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <button onClick={() => navigate(-1)} className="btn btn-outline" style={{ border: 'none', padding: 0, color: 'var(--text-secondary)' }}>
             <ArrowLeft size={18} /> Back to Assignment
           </button>
-          <button 
+          <button
             onClick={() => setRevealed(!revealed)}
             className="btn btn-outline"
             style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', borderColor: revealed ? 'var(--brand-red)' : 'var(--border-strong)', color: revealed ? 'var(--brand-red)' : 'var(--text-secondary)' }}
@@ -211,7 +304,7 @@ const ComparisonView: React.FC = () => {
 
         {/* Bottom row: Score & Context */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Similarity Score</span>
@@ -243,21 +336,38 @@ const ComparisonView: React.FC = () => {
               <span>Click on any highlighted block to focus it and auto-sync the side-by-side view.</span>
             </div>
           </div>
-          
+
+          {/* File count summary */}
+          {(sourceFiles.length > 1 || targetFiles.length > 1) && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.15rem', fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+              <span>Source: {countFileMatches(sourceFiles)}/{sourceFiles.length} files with matches</span>
+              <span>Target: {countFileMatches(targetFiles)}/{targetFiles.length} files with matches</span>
+            </div>
+          )}
+
         </div>
       </div>
 
       {/* Editor Main Split Pane */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minWidth: 0 }}>
-        
+
         {/* Source Side */}
         <div style={{ flex: 1, borderRight: '2px solid var(--border-strong)', display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)', minWidth: 0, position: 'relative' }}>
           <div style={{ padding: '0.75rem 1.5rem', background: 'var(--bg-surface-raised)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, borderBottom: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Source Document</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: revealed ? 'var(--brand-red)' : 'var(--text-primary)', fontSize: '0.95rem', fontWeight: revealed ? 600 : 500 }}>
-                {revealed ? source_student_decrypted : maskIdentity(source_student_decrypted)}
-              </span>
+              {revealed ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                  {source_student_name && (
+                    <span style={{ color: 'var(--brand-red)', fontSize: '0.95rem', fontWeight: 600 }}>{source_student_name}</span>
+                  )}
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--brand-red)', fontSize: '0.85rem', fontWeight: 500 }}>{source_student_decrypted}</span>
+                </div>
+              ) : (
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: 500 }}>
+                  {maskIdentity(source_student_decrypted)}
+                </span>
+              )}
             </div>
             {data.source_submission_id && (
               <button
@@ -270,24 +380,25 @@ const ComparisonView: React.FC = () => {
               </button>
             )}
           </div>
+          <FileTabBar files={sourceFiles} activeIdx={sourceFileIdx} onSelect={setSourceFileIdx} side="source" />
           <div style={{ flex: 1, padding: '1.5rem 0', paddingBottom: '8rem', overflow: 'auto', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.6 }}>
-            {source_code.split('\n').map((line: string, i: number) => {
+            {currentSourceCode.split('\n').map((line: string, i: number) => {
               const style = getStyleForLine(i, sMap);
               const isClickable = style.blockId !== -1;
               return (
-                <div 
-                  key={i} 
+                <div
+                  key={i}
                   id={`source-line-${i}`}
                   onClick={() => {
                       if (isClickable) jumpToBlock(style.blockId);
                   }}
-                  style={{ 
-                      display: 'flex', 
-                      background: style.bg, 
-                      padding: '1px 0', 
+                  style={{
+                      display: 'flex',
+                      background: style.bg,
+                      padding: '1px 0',
                       borderLeft: isClickable ? `3px solid ${style.border}` : '3px solid transparent',
                       cursor: isClickable ? 'pointer' : 'default',
-                      opacity: (activeBlockId !== null && isClickable && !style.isActive) ? 0.7 : 1, // Dim inactive matches slightly
+                      opacity: (activeBlockId !== null && isClickable && !style.isActive) ? 0.7 : 1,
                       transition: 'all 0.2s ease'
                   }}
                 >
@@ -304,9 +415,18 @@ const ComparisonView: React.FC = () => {
           <div style={{ padding: '0.75rem 1.5rem', background: 'var(--bg-surface-raised)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, borderBottom: '1px solid var(--border-subtle)' }}>
              <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Target Document</span>
-              <span style={{ fontFamily: 'var(--font-mono)', color: revealed ? 'var(--brand-red)' : 'var(--text-primary)', fontSize: '0.95rem', fontWeight: revealed ? 600 : 500 }}>
-                {revealed ? target_student_decrypted : maskIdentity(target_student_decrypted)}
-              </span>
+              {revealed ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                  {target_student_name && (
+                    <span style={{ color: 'var(--brand-red)', fontSize: '0.95rem', fontWeight: 600 }}>{target_student_name}</span>
+                  )}
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--brand-red)', fontSize: '0.85rem', fontWeight: 500 }}>{target_student_decrypted}</span>
+                </div>
+              ) : (
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', fontSize: '0.95rem', fontWeight: 500 }}>
+                  {maskIdentity(target_student_decrypted)}
+                </span>
+              )}
             </div>
             {data.target_submission_id && (
               <button
@@ -319,22 +439,23 @@ const ComparisonView: React.FC = () => {
               </button>
             )}
           </div>
+          <FileTabBar files={targetFiles} activeIdx={targetFileIdx} onSelect={setTargetFileIdx} side="target" />
           <div style={{ flex: 1, padding: '1.5rem 0', paddingBottom: '8rem', overflow: 'auto', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.6 }}>
-             {target_code.split('\n').map((line: string, i: number) => {
+             {currentTargetCode.split('\n').map((line: string, i: number) => {
                const style = getStyleForLine(i, tMap);
                const isClickable = style.blockId !== -1;
                return (
-                <div 
-                  key={i} 
+                <div
+                  key={i}
                   id={`target-line-${i}`}
                   onClick={() => {
                       if (isClickable) jumpToBlock(style.blockId);
                   }}
-                  style={{ 
-                      display: 'flex', 
-                      background: style.bg, 
-                      padding: '1px 0', 
-                      marginLeft: '2px', // Prevent border overlapping center divider
+                  style={{
+                      display: 'flex',
+                      background: style.bg,
+                      padding: '1px 0',
+                      marginLeft: '2px',
                       borderLeft: isClickable ? `3px solid ${style.border}` : '3px solid transparent',
                       cursor: isClickable ? 'pointer' : 'default',
                       opacity: (activeBlockId !== null && isClickable && !style.isActive) ? 0.7 : 1,
@@ -349,15 +470,15 @@ const ComparisonView: React.FC = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Centered Floating Control Panel */}
       {totalBlocks > 0 && (
-          <div style={{ 
-              position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', 
+          <div style={{
+              position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)',
               background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: '12px', border: '1px solid var(--border-strong)',
-              display: 'flex', gap: '1.5rem', alignItems: 'center', 
-              boxShadow: 'var(--shadow-lg)', 
-              zIndex: 100 
+              display: 'flex', gap: '1.5rem', alignItems: 'center',
+              boxShadow: 'var(--shadow-lg)',
+              zIndex: 100
           }}>
              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 1rem' }}>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>Matches</span>
@@ -365,23 +486,23 @@ const ComparisonView: React.FC = () => {
                     <span style={{ color: '#ca8a04' }}>{activeBlockId !== null ? activeBlockId + 1 : 0}</span> / {totalBlocks}
                 </span>
              </div>
-             
+
              <div style={{ width: '1px', height: '30px', background: 'var(--border-subtle)' }}></div>
-             
+
              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                 <button 
-                    onClick={() => jumpToBlock(activeBlockId !== null ? activeBlockId - 1 : 0)} 
-                    disabled={activeBlockId === null || activeBlockId <= 0} 
-                    className="btn" 
+                 <button
+                    onClick={() => jumpToBlock(activeBlockId !== null ? activeBlockId - 1 : 0)}
+                    disabled={activeBlockId === null || activeBlockId <= 0}
+                    className="btn"
                     style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', padding: '0.5rem 1rem', display: 'flex', gap: '0.5rem', opacity: (activeBlockId === null || activeBlockId <= 0) ? 0.3 : 1, transition: 'all 0.2s ease' }}
                  >
                      <ChevronLeft size={16} /> Prev
                  </button>
-                 
-                 <button 
-                    onClick={() => jumpToBlock(activeBlockId !== null ? activeBlockId + 1 : 0)} 
-                    disabled={activeBlockId === null || activeBlockId >= totalBlocks - 1} 
-                    className="btn" 
+
+                 <button
+                    onClick={() => jumpToBlock(activeBlockId !== null ? activeBlockId + 1 : 0)}
+                    disabled={activeBlockId === null || activeBlockId >= totalBlocks - 1}
+                    className="btn"
                     style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-primary)', padding: '0.5rem 1rem', display: 'flex', gap: '0.5rem', opacity: (activeBlockId === null || activeBlockId >= totalBlocks - 1) ? 0.3 : 1, transition: 'all 0.2s ease' }}
                  >
                      Next <ChevronRight size={16} />

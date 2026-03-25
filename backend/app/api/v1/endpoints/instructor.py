@@ -275,6 +275,57 @@ async def get_assignment(
         "language": assignment.language
     }
 
+@router.get("/assignments/{assignment_id}/submissions")
+async def get_assignment_submissions(
+    assignment_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: Instructor = Depends(get_current_user)
+):
+    """Return a privacy-safe overview of all submissions for an assignment."""
+    # Verify ownership
+    a_query = select(Assignment).join(Course).where(Assignment.id == assignment_id, Course.instructor_id == current_user.id)
+    a_result = await db.execute(a_query)
+    if not a_result.scalars().first():
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    # Fetch submissions with their stored files eagerly loaded
+    sub_query = (
+        select(Submission)
+        .options(joinedload(Submission.stored_files))
+        .where(Submission.assignment_id == assignment_id)
+        .order_by(Submission.timestamp.desc())
+    )
+    sub_result = await db.execute(sub_query)
+    submissions = sub_result.scalars().unique().all()
+
+    response = []
+    for sub in submissions:
+        # Mask student ID: first 2 + **** + last 2
+        raw_id = encryption_service.decrypt(sub.student_id_encrypted) if sub.student_id_encrypted else "Unknown"
+        if len(raw_id) > 4:
+            masked_id = raw_id[:2] + "****" + raw_id[-2:]
+        else:
+            masked_id = "****"
+
+        file_count = len(sub.stored_files) if sub.stored_files else 0
+        total_lines = sum(f.line_count for f in sub.stored_files) if sub.stored_files else 0
+        total_bytes = sum(f.byte_size for f in sub.stored_files) if sub.stored_files else 0
+
+        response.append({
+            "id": str(sub.id),
+            "masked_student_id": masked_id,
+            "timestamp": sub.timestamp.isoformat() if sub.timestamp else None,
+            "attempt_number": sub.attempt_number or 1,
+            "status": sub.status or "Active",
+            "is_flagged": sub.is_flagged or False,
+            "file_count": file_count,
+            "total_lines": total_lines,
+            "total_bytes": total_bytes,
+        })
+
+    return response
+
+
 @router.get("/assignments/{assignment_id}/comparisons")
 async def get_comparisons(
     assignment_id: uuid.UUID,
@@ -326,7 +377,6 @@ async def get_comparisons(
         })
         
     return response_data
-    return response_data
 
 @router.get("/comparisons/{comparison_id}")
 async def get_comparison_detail(
@@ -355,30 +405,55 @@ async def get_comparison_detail(
     if not a_result.scalars().first():
         raise HTTPException(status_code=403, detail="Unauthorized")
 
-    # Decrypt IDs
+    # Decrypt IDs and names
     raw_source = encryption_service.decrypt(comparison.source_submission.student_id_encrypted) or "Unknown Source"
     raw_target = encryption_service.decrypt(comparison.target_submission.student_id_encrypted) or "Unknown Target"
+    source_name = encryption_service.decrypt(comparison.source_submission.student_name_encrypted) or ""
+    target_name = encryption_service.decrypt(comparison.target_submission.student_name_encrypted) or ""
     
-    sf_query = select(StoredFile).where(StoredFile.submission_id == comparison.source_submission.id)
+    sf_query = select(StoredFile).where(StoredFile.submission_id == comparison.source_submission.id).order_by(StoredFile.storage_path)
     s_files = (await db.execute(sf_query)).scalars().all()
-    
-    tf_query = select(StoredFile).where(StoredFile.submission_id == comparison.target_submission.id)
+
+    tf_query = select(StoredFile).where(StoredFile.submission_id == comparison.target_submission.id).order_by(StoredFile.storage_path)
     t_files = (await db.execute(tf_query)).scalars().all()
-    
-    s_code = "No Source File Found"
-    if s_files:
+
+    meta = comparison.match_metadata or {}
+
+    # Build lookup: filename -> ranges from stored metadata
+    source_range_lookup = {item["filename"]: item["ranges"] for item in meta.get("source_files", [])}
+    target_range_lookup = {item["filename"]: item["ranges"] for item in meta.get("target_files", [])}
+
+    # Download ALL files for each submission with per-file ranges
+    source_files_out = []
+    for f in s_files:
+        fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
         try:
-            s_code = storage_service.download_file(s_files[0].storage_path).decode('utf-8')
+            code = storage_service.download_file(f.storage_path).decode('utf-8')
         except Exception as e:
-            s_code = f"Error downloading source code: {str(e)}"
-            
-    t_code = "No Target File Found"
-    if t_files:
+            code = f"Error downloading file: {str(e)}"
+        source_files_out.append({
+            "filename": fname,
+            "code": code,
+            "ranges": source_range_lookup.get(fname, [])
+        })
+
+    target_files_out = []
+    for f in t_files:
+        fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
         try:
-            t_code = storage_service.download_file(t_files[0].storage_path).decode('utf-8')
+            code = storage_service.download_file(f.storage_path).decode('utf-8')
         except Exception as e:
-            t_code = f"Error downloading target code: {str(e)}"
-            
+            code = f"Error downloading file: {str(e)}"
+        target_files_out.append({
+            "filename": fname,
+            "code": code,
+            "ranges": target_range_lookup.get(fname, [])
+        })
+
+    # Backward compat: also send single source_code/target_code (first file)
+    s_code = source_files_out[0]["code"] if source_files_out else "No Source File Found"
+    t_code = target_files_out[0]["code"] if target_files_out else "No Target File Found"
+
     return {
         "id": str(comparison.id),
         "score": float(comparison.similarity_score),
@@ -386,9 +461,13 @@ async def get_comparison_detail(
         "target_submission_id": str(comparison.target_submission_id),
         "source_student_decrypted": raw_source,
         "target_student_decrypted": raw_target,
+        "source_student_name": source_name,
+        "target_student_name": target_name,
         "source_code": s_code,
         "target_code": t_code,
-        "metadata": comparison.match_metadata or {}
+        "source_files": source_files_out,
+        "target_files": target_files_out,
+        "metadata": meta
     }
 
 
