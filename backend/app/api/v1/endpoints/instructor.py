@@ -593,16 +593,25 @@ async def download_submissions(
                 except Exception:
                     student_id = str(submission.id)[:8]
 
-            # Sanitize folder name (remove characters unsafe for paths)
-            folder_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in student_id)
+            # Sanitize identifier (remove characters unsafe for paths)
+            safe_student_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in student_id)
 
-            for idx, sf in enumerate(submission.stored_files, start=1):
-                try:
-                    file_bytes = storage_service.download_file(sf.storage_path)
-                    filename = f"file_{idx}{ext}" if len(submission.stored_files) > 1 else f"{folder_name}{ext}"
-                    zf.writestr(f"{folder_name}/{filename}", file_bytes)
-                except Exception as e:
-                    logger.warning(f"Failed to download file {sf.storage_path}: {e}")
+            # Create an inner zip file for this student
+            inner_zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(inner_zip_buffer, "w", zipfile.ZIP_DEFLATED) as inner_zf:
+                files_added = False
+                for idx, sf in enumerate(submission.stored_files, start=1):
+                    try:
+                        file_bytes = storage_service.download_file(sf.storage_path)
+                        filename = f"file_{idx}{ext}" if len(submission.stored_files) > 1 else f"{safe_student_id}{ext}"
+                        inner_zf.writestr(filename, file_bytes)
+                        files_added = True
+                    except Exception as e:
+                        logger.warning(f"Failed to download file {sf.storage_path}: {e}")
+            
+            if files_added:
+                inner_zip_buffer.seek(0)
+                zf.writestr(f"{safe_student_id}.zip", inner_zip_buffer.read())
 
     zip_buffer.seek(0)
     safe_title = "".join(c if c.isalnum() or c in "-_ " else "_" for c in assignment.title)

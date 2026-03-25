@@ -2,6 +2,8 @@
 
 ## 2026-03-25
 
+- Updated logic for "Download Submissions" in `AssignmentDetails` to generate `.zip` file of nested `.zip`s:
+  - backend/app/api/v1/endpoints/instructor.py `download_submissions` endpoint now creates a main `.zip` archive per assignment which contains an inner `.zip` file for every individual student instead of loose folders.
 - Submissions overview tab in AssignmentDetails:
   - Added GET /api/v1/instructor/assignments/{assignment_id}/submissions endpoint in backend/app/api/v1/endpoints/instructor.py. Returns a privacy-safe list of submissions with masked student ID, timestamp, attempt number, file count, total lines, total bytes, status, and flagged state.
   - Added "Submissions" tab as the first sidebar item in frontend/src/pages/AssignmentDetails.tsx (above Analytics Overview). Includes summary stat cards (total submissions, total files, total lines of code, latest submission time) and a detailed table showing each submission row with masked ID, submission time (GMT-4), attempt number, file count, line count, human-readable size, and status badge. Default active tab on page load.
