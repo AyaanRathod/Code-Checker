@@ -75,6 +75,7 @@ async def submit_assignment(
         raise HTTPException(status_code=400, detail="No valid source code files found (.c, .cpp, .java).")
 
     uploaded_objects: List[str] = []
+    file_details: List[dict] = []
 
     try:
         # 6. Create Submission Record
@@ -84,34 +85,34 @@ async def submit_assignment(
             student_id_encrypted=encrypted_id
         )
         new_submission = await submission_repository.create(db, sub_data)
-        
+
         # Update attempt number
         new_submission.attempt_number = expected_attempt
         await db.flush()
 
         processed_files = 0
-        
+
         # 7. Process each file
-        for _, content in extracted_files:
+        for original_name, content in extracted_files:
             try:
                 content_str = content.decode('utf-8', errors='ignore')
             except Exception:
                 # If it's pure binary or really mangled, skip
                 continue
-                
+
             sanitized_code = sanitization_service.strip_comments(content_str, assignment.language)
             sanitized_bytes = sanitized_code.encode('utf-8')
-            
+
             # Calculate Hash
             file_hash = hashlib.sha256(sanitized_bytes).hexdigest()
-            
+
             # MinIO Path: assignment_id/submission_id/uuid
             st_object_name = f"{assignment.id}/{new_submission.id}/{uuid.uuid4()}"
-            
+
             # Upload to MinIO
             storage_service.upload_file(st_object_name, sanitized_bytes, content_type="text/plain")
             uploaded_objects.append(st_object_name)
-            
+
             # Create StoredFile Record
             line_count = len(sanitized_code.splitlines())
             stored_file_data = StoredFileCreate(
@@ -123,6 +124,11 @@ async def submit_assignment(
             )
             await stored_file_repository.create(db, stored_file_data)
             processed_files += 1
+            file_details.append({
+                "name": original_name,
+                "lines": line_count,
+                "size_bytes": len(sanitized_bytes),
+            })
 
         if processed_files == 0:
             raise HTTPException(status_code=400, detail="No valid decodable source files were found after sanitization.")
@@ -143,9 +149,27 @@ async def submit_assignment(
                 continue
         raise HTTPException(status_code=500, detail="Submission failed during processing. Please try again.")
         
+    # Build health status
+    lang_ext_map = {"JAVA": ".java", "C": ".c", "CPP": ".cpp"}
+    expected_ext = lang_ext_map.get(assignment.language, "")
+    all_match_lang = all(f["name"].endswith(expected_ext) for f in file_details) if file_details else False
+    total_lines = sum(f["lines"] for f in file_details)
+    health = "ok" if (processed_files > 0 and all_match_lang and total_lines > 0) else "warning"
+    health_message = "All files processed successfully." if health == "ok" else (
+        f"No {expected_ext} files detected — verify you submitted the correct archive." if not all_match_lang
+        else "Files were processed but appear empty."
+    )
+
     return {
         "message": "Submission successful",
         "submission_id": new_submission.id,
         "attempt": expected_attempt,
-        "timestamp": new_submission.timestamp
+        "timestamp": new_submission.timestamp,
+        "assignment_title": assignment.title or "",
+        "language": assignment.language or "",
+        "files": file_details,
+        "total_files": processed_files,
+        "total_lines": total_lines,
+        "health": health,
+        "health_message": health_message,
     }

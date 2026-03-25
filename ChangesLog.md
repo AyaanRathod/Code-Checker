@@ -2,6 +2,47 @@
 
 ## 2026-03-25
 
+- File clear/replace UX across all upload zones:
+  - All 4 drop zones (StudentPortal submission, Dashboard boilerplate, Dashboard repo upload, Repositories page repo upload) now show a circular X button in the top-right corner when a file is selected, allowing users to clear the selection without refreshing.
+  - X button uses `stopPropagation` to avoid triggering the file picker, with red hover effect for clear intent.
+  - "Click to replace" hint text shown below the filename in all zones, signaling that clicking the zone itself opens the picker to swap files directly.
+  - StudentPortal clears both file and zip preview list on removal.
+
+- Drag-and-drop file upload across all drop zones:
+  - Created shared `useFileDrop` hook (frontend/src/hooks/useFileDrop.ts) with counter-based drag tracking to prevent child-element flicker, file extension validation, and single-file enforcement.
+  - Applied to all 4 upload zones: StudentPortal submission (.zip, .java, .c, .cpp), Dashboard boilerplate (.java, .c, .cpp, .h, .zip), Dashboard repo upload (.zip), Repositories page repo upload (.zip).
+  - Each zone shows a drag-active state: colored border highlight (red for submissions/boilerplate, purple for repositories) with "Drop here" text and UploadCloud icon.
+  - Removed invisible `<input>` overlay pattern that was blocking drag events — hidden inputs now triggered by click only.
+  - StudentPortal zip preview (JSZip client-side extraction) triggers identically on drag-drop as on click-browse.
+  - Added `jszip` dependency to frontend.
+
+- Pre-submit file preview on StudentPortal:
+  - When a zip file is selected (via click or drag), JSZip reads the archive client-side and lists all detected source files (.java, .c, .cpp, .h) with filenames and sizes in an animated preview panel below the upload area.
+  - For non-zip single files, shows the file directly in the preview.
+  - Warning banner appears if a zip contains zero supported source files, alerting the student before submission.
+  - Preview scrollable at 120px max height for large submissions.
+
+- Copy access key to clipboard:
+  - Dashboard assignment cards now allow clicking the access key row to copy it to clipboard.
+  - Shows a Copy icon that swaps to a green Check with "Copied!" text for 1.5s on click.
+  - Subtle hover highlight provides visual affordance.
+
+- Inline Repositories section on Dashboard:
+  - Added "Submission Repositories" section between active assignments and archived assignments on the Dashboard.
+  - When no repositories exist, shows a dashed-border empty state CTA explaining the feature and linking to upload.
+  - When repositories exist, shows compact horizontal-scrolling cards (name, language, date, submission count, delete) with an "Upload More" trailing card.
+  - Upload Repository modal opens inline on Dashboard (same form: name, language, zip-of-zips).
+  - Repository delete with confirmation dialog, inline on Dashboard.
+  - Nav bar "Repositories" button updated with Database icon (was Archive), still links to full management page.
+
+- Post-submission receipt enhancements (StudentPortal):
+  - backend/app/api/v1/endpoints/student.py submit response now includes `files` (name, lines, size_bytes per file), `total_files`, `total_lines`, `health` (ok/warning), `health_message`, `assignment_title`, and `language`.
+  - Health check logic: verifies all extracted files match the assignment's expected language extension and are non-empty. Returns "ok" or "warning" with a descriptive message.
+  - frontend/src/pages/StudentPortal.tsx receipt screen now shows:
+    - Health check banner (green for ok, yellow for warning) with contextual message.
+    - File preview table listing each detected file with filename, line count, and size. Scrollable for large submissions.
+    - "Save Receipt" button that downloads a formatted `.txt` file with full submission details (receipt ID, timestamp, attempt, file list, health status) for student records.
+
 - Assignment Archival System:
   - Extended `effective_status()` in backend/app/api/v1/endpoints/instructor.py to auto-detect `Archived` status when deadline + 30 days has passed (read-time computation, no cron needed).
   - Added `finalize_archive()` helper that: sets DB status to `Archived`, strips all PII (NULLs `student_name_encrypted` and `student_id_encrypted` on every submission), deletes all `ComparisonResult` rows, and auto-creates a `Repository` with linked `RepositorySubmission` entries from the archived submissions.

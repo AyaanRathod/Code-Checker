@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Trash2, Database, Calendar, Code, X, ShieldCheck, LogOut } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Database, Calendar, Code, X, ShieldCheck, LogOut, UploadCloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import { useFileDrop } from '../hooks/useFileDrop';
 
 const Repositories: React.FC = () => {
   const navigate = useNavigate();
@@ -14,6 +15,11 @@ const Repositories: React.FC = () => {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+
+  const repoFileDrop = useFileDrop({
+    accept: ['.zip'],
+    onFile: (f) => setUploadFile(f),
+  });
 
   const fetchRepos = async () => {
     const token = localStorage.getItem('token');
@@ -128,25 +134,46 @@ const Repositories: React.FC = () => {
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Repository File (.zip of .zips)</label>
                   <div
+                    {...repoFileDrop.dragHandlers}
                     style={{
-                      border: '2px dashed var(--border-strong)', borderRadius: 'var(--radius-md)', padding: '1.25rem',
+                      border: `2px dashed ${repoFileDrop.dragActive ? '#7c3aed' : 'var(--border-strong)'}`, borderRadius: 'var(--radius-md)', padding: '1.25rem',
                       textAlign: 'center', cursor: 'pointer',
-                      background: uploadFile ? '#ecfdf5' : 'var(--bg-surface-raised)', transition: 'all 0.15s ease'
+                      background: repoFileDrop.dragActive ? '#faf5ff' : uploadFile ? '#ecfdf5' : 'var(--bg-surface-raised)', transition: 'all 0.15s ease'
                     }}
                     onClick={() => document.getElementById('repo-file-input')?.click()}
                   >
                     <input id="repo-file-input" type="file" accept=".zip" style={{ display: 'none' }} onChange={e => setUploadFile(e.target.files?.[0] || null)} />
-                    {uploadFile ? (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: '#059669', fontSize: '0.85rem', fontWeight: 600 }}>
-                        <Upload size={16} /> {uploadFile.name}
-                        <button type="button" onClick={(ev) => { ev.stopPropagation(); setUploadFile(null); }} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}>
-                          <X size={14} />
+                    {repoFileDrop.dragActive ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: '#7c3aed', fontSize: '0.85rem', fontWeight: 600 }}>
+                        <UploadCloud size={20} /> Drop .zip file here
+                      </div>
+                    ) : uploadFile ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem', position: 'relative' }}>
+                        <button
+                          type="button"
+                          onClick={(ev) => { ev.stopPropagation(); setUploadFile(null); }}
+                          title="Remove file"
+                          style={{
+                            position: 'absolute', top: '-0.4rem', right: '-0.4rem',
+                            width: '20px', height: '20px', borderRadius: '50%',
+                            background: 'var(--bg-surface-highest)', border: '1px solid var(--border-subtle)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', color: 'var(--text-tertiary)', transition: 'all 0.15s ease', padding: 0
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-surface-highest)'; e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+                        >
+                          <X size={10} />
                         </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#059669', fontSize: '0.85rem', fontWeight: 600 }}>
+                          <Upload size={16} /> {uploadFile.name}
+                        </div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>Click to replace</span>
                       </div>
                     ) : (
                       <div style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>
                         <Upload size={20} style={{ margin: '0 auto 0.5rem auto', display: 'block', opacity: 0.5 }} />
-                        Click to select a .zip file
+                        Drop or click to select a .zip file
                       </div>
                     )}
                   </div>
