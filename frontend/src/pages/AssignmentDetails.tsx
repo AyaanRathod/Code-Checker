@@ -225,6 +225,8 @@ const AssignmentDetails: React.FC = () => {
                  const totalSubs = submissions.length;
                  const totalFiles = submissions.reduce((sum: number, s: any) => sum + (s.file_count || 0), 0);
                  const totalLines = submissions.reduce((sum: number, s: any) => sum + (s.total_lines || 0), 0);
+                 const avgFiles = totalSubs > 0 ? (totalFiles / totalSubs).toFixed(1) : 0;
+                 const avgLines = totalSubs > 0 ? Math.round(totalLines / totalSubs) : 0;
                  const latestTime = totalSubs > 0 ? submissions[0].timestamp : null;
 
                  return (
@@ -236,18 +238,19 @@ const AssignmentDetails: React.FC = () => {
                        <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{totalSubs}</span>
                      </div>
 
-                     <div className="glass-card" style={{ padding: '1rem', borderTop: '4px solid #6366f1' }}>
+                     <div className="glass-card" style={{ padding: '1rem', borderTop: '4px solid #6366f1', display: 'flex', flexDirection: 'column' }}>
                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                          <FileCode size={14} /> Total Files
                        </span>
-                       <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{totalFiles}</span>
+                       <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: '1.2' }}>{totalFiles}</span>
+                       <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', fontWeight: 500 }}>~{avgFiles} per submission</span>
                      </div>
 
                      <div className="glass-card" style={{ padding: '1rem', borderTop: '4px solid #10b981' }}>
                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                         <Hash size={14} /> Total Lines of Code
+                         <Hash size={14} /> Avg Lines of Code
                        </span>
-                       <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{totalLines.toLocaleString()}</span>
+                       <span style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{avgLines.toLocaleString()}</span>
                      </div>
 
                      {latestTime && (
