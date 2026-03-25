@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, AlertOctagon, Unlock, ChevronLeft, ChevronRight, LocateFixed, Info } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertOctagon, Unlock, ChevronLeft, ChevronRight, LocateFixed, Info, Download } from 'lucide-react';
 import axios from 'axios';
 
 const ComparisonView: React.FC = () => {
@@ -138,6 +138,36 @@ const ComparisonView: React.FC = () => {
       setTimeout(() => scrollToBlock(blockId, 'target'), 50);
   };
 
+  const handleDownloadSubmission = async (submissionId: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) { navigate('/instructor/login'); return; }
+
+    try {
+      const response = await axios.get(
+        `http://localhost:8000/api/v1/instructor/submissions/${submissionId}/download`,
+        { headers: { Authorization: `Bearer ${token}` }, responseType: 'blob' }
+      );
+
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'submission.zip';
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match) filename = match[1];
+      }
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert('Failed to download submission files.');
+    }
+  };
+
   // Modern UI Colors for Highlight States (Light Theme)
   const ACTIVE_MATCH_BG = 'rgba(234, 179, 8, 0.35)'; // Yellow highlight
   const ACTIVE_MATCH_BORDER = '#ca8a04';
@@ -229,6 +259,16 @@ const ComparisonView: React.FC = () => {
                 {revealed ? source_student_decrypted : maskIdentity(source_student_decrypted)}
               </span>
             </div>
+            {data.source_submission_id && (
+              <button
+                onClick={() => handleDownloadSubmission(data.source_submission_id)}
+                className="btn btn-outline"
+                style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', gap: '0.35rem' }}
+                title="Download source submission files"
+              >
+                <Download size={14} /> Download
+              </button>
+            )}
           </div>
           <div style={{ flex: 1, padding: '1.5rem 0', paddingBottom: '8rem', overflow: 'auto', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.6 }}>
             {source_code.split('\n').map((line: string, i: number) => {
@@ -268,6 +308,16 @@ const ComparisonView: React.FC = () => {
                 {revealed ? target_student_decrypted : maskIdentity(target_student_decrypted)}
               </span>
             </div>
+            {data.target_submission_id && (
+              <button
+                onClick={() => handleDownloadSubmission(data.target_submission_id)}
+                className="btn btn-outline"
+                style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', gap: '0.35rem' }}
+                title="Download target submission files"
+              >
+                <Download size={14} /> Download
+              </button>
+            )}
           </div>
           <div style={{ flex: 1, padding: '1.5rem 0', paddingBottom: '8rem', overflow: 'auto', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.6 }}>
              {target_code.split('\n').map((line: string, i: number) => {

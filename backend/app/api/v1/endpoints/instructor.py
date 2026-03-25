@@ -1,9 +1,13 @@
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
+import io
+import zipfile
+import logging
 
 from app.core.database import get_db
 from app.api.dependencies import get_current_user
@@ -19,6 +23,8 @@ from sqlalchemy.orm import joinedload
 from app.services.encryption_service import encryption_service
 import uuid
 import secrets
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 CANADA_TZ = ZoneInfo("America/Toronto")
@@ -257,9 +263,155 @@ async def get_comparison_detail(
     return {
         "id": str(comparison.id),
         "score": float(comparison.similarity_score),
+        "source_submission_id": str(comparison.source_submission_id),
+        "target_submission_id": str(comparison.target_submission_id),
         "source_student_decrypted": raw_source,
         "target_student_decrypted": raw_target,
         "source_code": s_code,
         "target_code": t_code,
         "metadata": comparison.match_metadata or {}
     }
+
+
+LANGUAGE_EXTENSIONS = {
+    "JAVA": ".java",
+    "C": ".c",
+    "CPP": ".cpp",
+}
+
+
+@router.get("/submissions/{submission_id}/download")
+async def download_single_submission(
+    submission_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: Instructor = Depends(get_current_user)
+):
+    """Download all files for a single submission as a zip."""
+    # Fetch submission with stored files
+    sub_query = (
+        select(Submission)
+        .options(joinedload(Submission.stored_files))
+        .where(Submission.id == submission_id)
+    )
+    sub_result = await db.execute(sub_query)
+    submission = sub_result.scalars().unique().first()
+
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    # Verify instructor owns this assignment via course
+    a_query = (
+        select(Assignment)
+        .join(Course)
+        .where(Assignment.id == submission.assignment_id, Course.instructor_id == current_user.id)
+    )
+    a_result = await db.execute(a_query)
+    assignment = a_result.scalars().first()
+    if not assignment:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    ext = LANGUAGE_EXTENSIONS.get(assignment.language, ".txt")
+
+    # Decrypt student ID for folder/file naming
+    student_id = "unknown"
+    if submission.student_id_encrypted:
+        try:
+            student_id = encryption_service.decrypt(submission.student_id_encrypted)
+        except Exception:
+            student_id = str(submission.id)[:8]
+
+    folder_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in student_id)
+
+    if not submission.stored_files:
+        raise HTTPException(status_code=404, detail="No files found for this submission")
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for idx, sf in enumerate(submission.stored_files, start=1):
+            try:
+                file_bytes = storage_service.download_file(sf.storage_path)
+                filename = f"file_{idx}{ext}" if len(submission.stored_files) > 1 else f"{folder_name}{ext}"
+                zf.writestr(f"{folder_name}/{filename}", file_bytes)
+            except Exception as e:
+                logger.warning(f"Failed to download file {sf.storage_path}: {e}")
+
+    zip_buffer.seek(0)
+    zip_filename = f"{folder_name}_submission.zip"
+
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{zip_filename}"'}
+    )
+
+
+@router.get("/assignments/{assignment_id}/download")
+async def download_submissions(
+    assignment_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: Instructor = Depends(get_current_user)
+):
+    """Download all submissions for an assignment as a zip file.
+    Structure: {student_id}/file_1.ext, {student_id}/file_2.ext, ...
+    """
+    # Verify assignment ownership
+    a_query = (
+        select(Assignment, Course)
+        .join(Course, Assignment.course_id == Course.id)
+        .where(Assignment.id == assignment_id, Course.instructor_id == current_user.id)
+    )
+    a_result = await db.execute(a_query)
+    row = a_result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    assignment, course = row
+    ext = LANGUAGE_EXTENSIONS.get(assignment.language, ".txt")
+
+    # Fetch all active submissions with their stored files
+    sub_query = (
+        select(Submission)
+        .options(joinedload(Submission.stored_files))
+        .where(
+            Submission.assignment_id == assignment_id,
+            Submission.status == "Active"
+        )
+    )
+    sub_result = await db.execute(sub_query)
+    submissions = sub_result.scalars().unique().all()
+
+    if not submissions:
+        raise HTTPException(status_code=404, detail="No active submissions found for this assignment")
+
+    # Build zip in memory
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for submission in submissions:
+            # Decrypt student ID for folder name
+            student_id = "unknown"
+            if submission.student_id_encrypted:
+                try:
+                    student_id = encryption_service.decrypt(submission.student_id_encrypted)
+                except Exception:
+                    student_id = str(submission.id)[:8]
+
+            # Sanitize folder name (remove characters unsafe for paths)
+            folder_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in student_id)
+
+            for idx, sf in enumerate(submission.stored_files, start=1):
+                try:
+                    file_bytes = storage_service.download_file(sf.storage_path)
+                    filename = f"file_{idx}{ext}" if len(submission.stored_files) > 1 else f"{folder_name}{ext}"
+                    zf.writestr(f"{folder_name}/{filename}", file_bytes)
+                except Exception as e:
+                    logger.warning(f"Failed to download file {sf.storage_path}: {e}")
+
+    zip_buffer.seek(0)
+    safe_title = "".join(c if c.isalnum() or c in "-_ " else "_" for c in assignment.title)
+    zip_filename = f"{course.course_code}_{safe_title}_submissions.zip"
+
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{zip_filename}"'}
+    )

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, AlertTriangle, CheckCircle, Search, Download, BookOpen, Clock, FileWarning } from 'lucide-react';
+import { ArrowLeft, Play, AlertTriangle, CheckCircle, Search, Download, BookOpen, Clock, FileWarning, Archive } from 'lucide-react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 
@@ -11,6 +11,7 @@ const AssignmentDetails: React.FC = () => {
   const [comparisons, setComparisons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
 
   const formatDeadline = (deadline: string) => {
@@ -83,6 +84,48 @@ const AssignmentDetails: React.FC = () => {
     }
   };
 
+  const handleDownloadSubmissions = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/instructor/login');
+      return;
+    }
+
+    setDownloading(true);
+    try {
+      const response = await axios.get(
+        `http://localhost:8000/api/v1/instructor/assignments/${id}/download`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          responseType: 'blob'
+        }
+      );
+
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'submissions.zip';
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match) filename = match[1];
+      }
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      const message = err.response?.status === 404
+        ? 'No submissions found to download.'
+        : 'Failed to download submissions.';
+      alert(message);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (loading) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Loading assignment details...</div>;
   if (error) return <div style={{ padding: '4rem', textAlign: 'center', color: '#dc2626' }}>{error}</div>;
   if (!assignment) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Assignment not found.</div>;
@@ -118,6 +161,9 @@ const AssignmentDetails: React.FC = () => {
           <div style={{ display: 'flex', gap: '1rem' }}>
             <button className="btn btn-outline" disabled={comparisons.length === 0} style={{ background: 'var(--bg-surface)' }}>
               <Download size={16} /> Export PDF
+            </button>
+            <button className="btn btn-outline" onClick={handleDownloadSubmissions} disabled={downloading} style={{ background: 'var(--bg-surface)' }}>
+              <Archive size={16} /> {downloading ? 'Downloading...' : 'Download Submissions'}
             </button>
             <button className="btn btn-primary" onClick={handleRunAnalysis} disabled={triggering}>
               <Play size={16} fill="currentColor" /> {triggering ? 'Triggering...' : 'Run Analysis Now'}
