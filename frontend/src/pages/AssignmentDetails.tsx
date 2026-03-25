@@ -389,12 +389,15 @@ const AssignmentDetails: React.FC = () => {
                                {/* Cells */}
                                {uniqueIds.map((colId, j) => {
                                  let score = 0;
+                                 let comp: any = null;
                                  if (rowId === colId) {
                                    score = 100; // Identity diagonal
                                  } else {
-                                   const comp = comparisons.find(c => (c.source_student === rowId && c.target_student === colId) || (c.source_student === colId && c.target_student === rowId));
+                                   comp = comparisons.find(c => (c.source_student === rowId && c.target_student === colId) || (c.source_student === colId && c.target_student === rowId));
                                    if (comp) score = comp.score;
                                  }
+
+                                 const isClickable = comp !== null;
 
                                  // Color calculation based on score
                                  let bgColor = 'hsl(220, 20%, 95%)'; // Very light gray/blue
@@ -414,7 +417,8 @@ const AssignmentDetails: React.FC = () => {
                                    <div
                                       key={`${rowId}-${colId}`}
                                       className="heatmap-cell"
-                                      title={`Source: ${rowId}\nTarget: ${colId}\nSimilarity: ${score.toFixed(1)}%`}
+                                      title={`Source: ${rowId}\nTarget: ${colId}\nSimilarity: ${score.toFixed(1)}%${isClickable ? '\nClick to inspect' : ''}`}
+                                      onClick={() => { if (isClickable) navigate(`/instructor/compare/${comp.id}`); }}
                                       style={{
                                         width: cellSize,
                                         height: cellSize,
@@ -426,7 +430,7 @@ const AssignmentDetails: React.FC = () => {
                                         fontSize: cellSize < 30 ? '0' : '0.6rem',
                                         color: score > 60 && rowId !== colId ? 'white' : 'transparent',
                                         fontWeight: 700,
-                                        cursor: 'crosshair',
+                                        cursor: isClickable ? 'pointer' : 'default',
                                         transition: 'all 0.15s ease'
                                       }}
                                    >

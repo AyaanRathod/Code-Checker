@@ -46,19 +46,34 @@ async def perform_full_analysis(assignment_id: uuid.UUID):
                 return
             lang = assignment.language
 
+            # Build boilerplate fingerprint hashes to exclude from comparisons
+            from app.models.boilerplate import Boilerplate
+            from app.analysis import scorer
+
+            bp_query = await db.execute(select(Boilerplate).where(Boilerplate.assignment_id == assignment_id))
+            boilerplate_records = bp_query.scalars().all()
+
+            boilerplate_hashes: set = set()
+            for bp in boilerplate_records:
+                try:
+                    if bp.content:
+                        bp_code = bp.content
+                    else:
+                        bp_bytes = storage_service.download_file(bp.storage_path)
+                        bp_code = bp_bytes.decode('utf-8')
+                    bp_fp = analysis_service.strip_and_fingerprint(bp_code, lang)
+                    boilerplate_hashes.update(fp_item['hash'] for fp_item in bp_fp)
+                except Exception:
+                    logger.exception("Error processing boilerplate", extra={"boilerplate_id": str(bp.id)})
+
             # We pull code down from MinIO, fingerprint, store fingerprints in memory
             # Then we compare them.
             fingerprints = {}
 
             for sid, files in sub_files.items():
-                # For simplicity, combine all files for a single submission into one logical blob,
-                # or treat them as one large fingerprint array
                 combined_fp = []
                 for f in files:
                     try:
-                        # If fingerprint_hash is already present in DB from upload, we use it
-                        # But wait, in the student upload we didn't fingerprint, we just stripped comments.
-                        # Because Winnowing requires tokenizer and scorer logic.
                         if f.fingerprint_hash:
                             combined_fp.extend(f.fingerprint_hash)
                         else:
@@ -66,9 +81,12 @@ async def perform_full_analysis(assignment_id: uuid.UUID):
                             code_str = code_bytes.decode('utf-8')
                             fp = analysis_service.strip_and_fingerprint(code_str, lang)
                             combined_fp.extend(fp)
-                            # Optionally save 'f.fingerprint_hash = fp' to DB here to avoid re-parsing next time
                     except Exception:
                         logger.exception("Error downloading/parsing stored file", extra={"storage_path": f.storage_path})
+
+                # Remove boilerplate fingerprints before comparison
+                if boilerplate_hashes and combined_fp:
+                    combined_fp = scorer.remove_boilerplate(combined_fp, boilerplate_hashes)
 
                 fingerprints[sid] = combined_fp
 

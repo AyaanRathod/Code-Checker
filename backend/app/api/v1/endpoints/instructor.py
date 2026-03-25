@@ -1,5 +1,5 @@
-from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Any, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -17,6 +17,7 @@ from app.models.assignment import Assignment
 from app.models.submission import Submission
 from app.models.comparison_result import ComparisonResult
 from app.models.stored_file import StoredFile
+from app.models.boilerplate import Boilerplate
 from app.services.storage_service import storage_service
 from app.schemas.assignment import AssignmentCreate, AssignmentResponse
 from sqlalchemy.orm import joinedload
@@ -28,6 +29,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 CANADA_TZ = ZoneInfo("America/Toronto")
+
+
+def effective_status(assignment: Assignment) -> str:
+    """Return the display status: 'Closed' if deadline has passed and status is 'Open', otherwise the stored status."""
+    if assignment.status == "Open" and assignment.deadline:
+        if assignment.deadline < datetime.now(timezone.utc):
+            return "Closed"
+    return assignment.status
 
 @router.get("/assignments", response_model=List[dict])
 async def get_instructor_assignments(
@@ -63,7 +72,7 @@ async def get_instructor_assignments(
             "id": str(assignment.id),
             "title": assignment.title,
             "course": course.course_code,
-            "status": assignment.status,
+            "status": effective_status(assignment),
             "count": sub_count or 0,
             "flags": flag_count or 0,
             "access_key": assignment.access_key,
@@ -75,32 +84,33 @@ async def get_instructor_assignments(
 
 @router.post("/assignments", response_model=dict)
 async def create_assignment(
-    assignment_in: dict,
+    course_code: str = Form(...),
+    title: str = Form(...),
+    language: str = Form("JAVA"),
+    deadline: str = Form(...),
+    boilerplate_file: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db),
     current_user: Instructor = Depends(get_current_user)
 ) -> Any:
-    """Create a new assignment for a course. Autogenerates Course if missing."""
-    course_code = assignment_in.get("course_code")
-    title = assignment_in.get("title")
-    language = assignment_in.get("language", "JAVA")
-    deadline = assignment_in.get("deadline") # Usually an ISO string
-    
+    """Create a new assignment for a course. Autogenerates Course if missing.
+    Optionally accepts a boilerplate file whose code will be excluded from similarity analysis."""
+
     if not course_code or not title or not deadline:
         raise HTTPException(status_code=400, detail="course_code, title, and deadline are required")
-        
+
     # Find or create course for this instructor
     course_query = select(Course).where(Course.course_code == course_code, Course.instructor_id == current_user.id)
     course_result = await db.execute(course_query)
     course = course_result.scalars().first()
-    
+
     if not course:
         course = Course(course_code=course_code, term="Current", instructor_id=current_user.id)
         db.add(course)
         await db.flush()
-        
+
     # Generate unique access key
     access_key = f"{course_code.replace(' ', '').lower()}-{secrets.token_hex(4)}"
-    
+
     try:
         parsed_deadline = datetime.fromisoformat(deadline.replace("Z", "+00:00"))
     except ValueError:
@@ -120,9 +130,25 @@ async def create_assignment(
         deadline=deadline_utc
     )
     db.add(new_assignment)
+    await db.flush()
+
+    # Handle optional boilerplate file upload
+    if boilerplate_file and boilerplate_file.filename:
+        file_bytes = await boilerplate_file.read()
+        if file_bytes:
+            object_name = f"boilerplate/{new_assignment.id}/{boilerplate_file.filename}"
+            storage_service.upload_file(object_name, file_bytes, content_type="text/plain")
+            content_str = file_bytes.decode("utf-8", errors="replace")
+            bp = Boilerplate(
+                assignment_id=new_assignment.id,
+                storage_path=object_name,
+                content=content_str
+            )
+            db.add(bp)
+
     await db.commit()
     await db.refresh(new_assignment)
-    
+
     return {
         "id": str(new_assignment.id),
         "title": new_assignment.title,
@@ -132,6 +158,99 @@ async def create_assignment(
         "flags": 0,
         "access_key": new_assignment.access_key
     }
+
+@router.patch("/assignments/{assignment_id}", response_model=dict)
+async def update_assignment(
+    assignment_id: uuid.UUID,
+    title: Optional[str] = Form(None),
+    course_code: Optional[str] = Form(None),
+    language: Optional[str] = Form(None),
+    deadline: Optional[str] = Form(None),
+    boilerplate_file: Optional[UploadFile] = File(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: Instructor = Depends(get_current_user)
+) -> Any:
+    """Update an existing assignment. Only provided fields are changed. Submissions are not affected."""
+    # Verify ownership
+    a_query = (
+        select(Assignment, Course)
+        .join(Course, Assignment.course_id == Course.id)
+        .where(Assignment.id == assignment_id, Course.instructor_id == current_user.id)
+    )
+    a_result = await db.execute(a_query)
+    row = a_result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    assignment, course = row
+
+    # Update fields that were provided
+    if title is not None:
+        assignment.title = title
+
+    if language is not None:
+        assignment.language = language.upper()
+
+    if deadline is not None:
+        try:
+            parsed_deadline = datetime.fromisoformat(deadline.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid deadline format")
+        if parsed_deadline.tzinfo is None:
+            parsed_deadline = parsed_deadline.replace(tzinfo=CANADA_TZ)
+        assignment.deadline = parsed_deadline.astimezone(timezone.utc)
+
+    if course_code is not None and course_code != course.course_code:
+        # Find or create the new course
+        new_course_query = select(Course).where(Course.course_code == course_code, Course.instructor_id == current_user.id)
+        new_course_result = await db.execute(new_course_query)
+        new_course = new_course_result.scalars().first()
+        if not new_course:
+            new_course = Course(course_code=course_code, term="Current", instructor_id=current_user.id)
+            db.add(new_course)
+            await db.flush()
+        assignment.course_id = new_course.id
+        course = new_course
+
+    # Handle optional boilerplate file replacement
+    if boilerplate_file and boilerplate_file.filename:
+        file_bytes = await boilerplate_file.read()
+        if file_bytes:
+            # Delete existing boilerplate records for this assignment
+            existing_bp_query = select(Boilerplate).where(Boilerplate.assignment_id == assignment_id)
+            existing_bps = (await db.execute(existing_bp_query)).scalars().all()
+            for old_bp in existing_bps:
+                try:
+                    storage_service.delete_file(old_bp.storage_path)
+                except Exception:
+                    pass
+                await db.delete(old_bp)
+
+            object_name = f"boilerplate/{assignment.id}/{boilerplate_file.filename}"
+            storage_service.upload_file(object_name, file_bytes, content_type="text/plain")
+            content_str = file_bytes.decode("utf-8", errors="replace")
+            bp = Boilerplate(
+                assignment_id=assignment.id,
+                storage_path=object_name,
+                content=content_str
+            )
+            db.add(bp)
+
+    await db.commit()
+    await db.refresh(assignment)
+
+    return {
+        "id": str(assignment.id),
+        "title": assignment.title,
+        "course": course.course_code,
+        "status": effective_status(assignment),
+        "count": 0,
+        "flags": 0,
+        "access_key": assignment.access_key,
+        "language": assignment.language,
+        "deadline": assignment.deadline
+    }
+
 
 @router.get("/assignments/{assignment_id}")
 async def get_assignment(
@@ -150,7 +269,7 @@ async def get_assignment(
         "id": str(assignment.id),
         "title": assignment.title,
         "course": course.course_code,
-        "status": assignment.status,
+        "status": effective_status(assignment),
         "access_key": assignment.access_key,
         "deadline": assignment.deadline,
         "language": assignment.language

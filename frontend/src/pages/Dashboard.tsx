@@ -2,13 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, ChevronRight, BookOpen, Plus, X, Key, ShieldCheck, Clock } from 'lucide-react';
+import { LogOut, ChevronRight, BookOpen, Plus, X, Key, ShieldCheck, Clock, Upload, Pencil } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<any>(null); // null = create mode
   const [newAssignment, setNewAssignment] = useState({ title: '', course_code: '', language: 'JAVA', deadline: '' });
+  const [boilerplateFile, setBoilerplateFile] = useState<File | null>(null);
   const [createError, setCreateError] = useState('');
   const navigate = useNavigate();
 
@@ -66,6 +68,35 @@ const Dashboard: React.FC = () => {
     navigate('/instructor/login');
   };
 
+  const openCreateModal = () => {
+    setEditingAssignment(null);
+    setNewAssignment({ title: '', course_code: '', language: 'JAVA', deadline: '' });
+    setBoilerplateFile(null);
+    setCreateError('');
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (assignment: any) => {
+    setEditingAssignment(assignment);
+    // Convert UTC deadline to local datetime-local format for the input
+    let deadlineLocal = '';
+    if (assignment.deadline) {
+      const dt = new Date(assignment.deadline);
+      // Format as YYYY-MM-DDTHH:MM for datetime-local input
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      deadlineLocal = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    }
+    setNewAssignment({
+      title: assignment.title || '',
+      course_code: assignment.course || '',
+      language: assignment.language || 'JAVA',
+      deadline: deadlineLocal
+    });
+    setBoilerplateFile(null);
+    setCreateError('');
+    setIsModalOpen(true);
+  };
+
   const handleCreateAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = localStorage.getItem('token');
@@ -76,16 +107,34 @@ const Dashboard: React.FC = () => {
 
     try {
       setCreateError('');
-      await axios.post('http://localhost:8000/api/v1/instructor/assignments', newAssignment, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const formData = new FormData();
+      formData.append('course_code', newAssignment.course_code);
+      formData.append('title', newAssignment.title);
+      formData.append('language', newAssignment.language);
+      formData.append('deadline', newAssignment.deadline);
+      if (boilerplateFile) {
+        formData.append('boilerplate_file', boilerplateFile);
+      }
+
+      if (editingAssignment) {
+        await axios.patch(`http://localhost:8000/api/v1/instructor/assignments/${editingAssignment.id}`, formData, {
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+        });
+      } else {
+        await axios.post('http://localhost:8000/api/v1/instructor/assignments', formData, {
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+        });
+      }
+
       setIsModalOpen(false);
+      setEditingAssignment(null);
       setNewAssignment({ title: '', course_code: '', language: 'JAVA', deadline: '' });
+      setBoilerplateFile(null);
       setLoading(true);
       fetchAssignments();
     } catch (err: any) {
       console.error(err);
-      setCreateError(err.response?.data?.detail || 'Failed to create assignment.');
+      setCreateError(err.response?.data?.detail || (editingAssignment ? 'Failed to update assignment.' : 'Failed to create assignment.'));
     }
   };
 
@@ -108,14 +157,14 @@ const Dashboard: React.FC = () => {
               className="glass-card" 
               style={{ width: '450px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative' }}
             >
-              <button 
-                onClick={() => setIsModalOpen(false)}
+              <button
+                onClick={() => { setIsModalOpen(false); setEditingAssignment(null); }}
                 style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}
               >
                 <X size={20} />
               </button>
               
-              <h2 style={{ fontSize: '1.25rem' }}>Create Assignment</h2>
+              <h2 style={{ fontSize: '1.25rem' }}>{editingAssignment ? 'Edit Assignment' : 'Create Assignment'}</h2>
 
               {createError && (
                 <div style={{ padding: '0.75rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontSize: '0.85rem' }}>
@@ -144,7 +193,52 @@ const Dashboard: React.FC = () => {
                   <label className="form-label">Deadline</label>
                   <input type="datetime-local" required value={newAssignment.deadline} onChange={e => setNewAssignment({...newAssignment, deadline: e.target.value})} className="form-input" />
                 </div>
-                <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem' }}>Create & Generate Access Key</button>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Boilerplate / Starter Code <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>(optional)</span></label>
+                  <div
+                    style={{
+                      border: '2px dashed var(--border-strong)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '1rem',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      background: boilerplateFile ? '#ecfdf5' : 'var(--bg-surface-raised)',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onClick={() => document.getElementById('boilerplate-input')?.click()}
+                  >
+                    <input
+                      id="boilerplate-input"
+                      type="file"
+                      accept=".java,.c,.cpp,.h,.zip"
+                      style={{ display: 'none' }}
+                      onChange={e => setBoilerplateFile(e.target.files?.[0] || null)}
+                    />
+                    {boilerplateFile ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: '#059669', fontSize: '0.85rem', fontWeight: 600 }}>
+                        <Upload size={16} /> {boilerplateFile.name}
+                        <button
+                          type="button"
+                          onClick={(ev) => { ev.stopPropagation(); setBoilerplateFile(null); }}
+                          style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', padding: '0 0.25rem' }}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem' }}>
+                        <Upload size={16} style={{ margin: '0 auto 0.25rem auto', display: 'block', opacity: 0.5 }} />
+                        Click to upload starter code (.java, .c, .cpp, .zip)
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.25rem', display: 'block' }}>
+                    This code will be excluded from similarity comparisons.
+                  </span>
+                </div>
+                <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem' }}>
+                  {editingAssignment ? 'Save Changes' : 'Create & Generate Access Key'}
+                </button>
               </form>
             </motion.div>
           </motion.div>
@@ -167,7 +261,7 @@ const Dashboard: React.FC = () => {
             <h1 style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>Dashboard</h1>
             <p style={{ color: 'var(--text-secondary)' }}>Manage your active courses and similarity analyses.</p>
           </div>
-          <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+          <button className="btn btn-primary" onClick={openCreateModal}>
             <Plus size={18} /> New Assignment
           </button>
         </div>
@@ -195,18 +289,39 @@ const Dashboard: React.FC = () => {
                   <div style={{ padding: '0.25rem 0.6rem', background: 'var(--bg-surface-highest)', borderRadius: 'var(--radius-sm)', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <BookOpen size={12} /> {assignment.course}
                   </div>
-                  <span style={{ 
-                    fontSize: '0.7rem', 
-                    padding: '0.25rem 0.6rem', 
-                    borderRadius: 'var(--radius-sm)',
-                    background: assignment.status === 'Closed' ? '#f1f5f9' : '#ecfdf5',
-                    color: assignment.status === 'Closed' ? '#64748b' : '#059669',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
-                  }}>
-                    {assignment.status}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button
+                      onClick={(e) => { e.preventDefault(); openEditModal(assignment); }}
+                      title="Edit assignment"
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '0.3rem',
+                        cursor: 'pointer',
+                        color: 'var(--text-tertiary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--brand-red)'; e.currentTarget.style.borderColor = 'var(--brand-red)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; }}
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      padding: '0.25rem 0.6rem',
+                      borderRadius: 'var(--radius-sm)',
+                      background: assignment.status === 'Closed' ? '#f1f5f9' : '#ecfdf5',
+                      color: assignment.status === 'Closed' ? '#64748b' : '#059669',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      {assignment.status}
+                    </span>
+                  </div>
                 </div>
                 
                 <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>{assignment.title}</h3>

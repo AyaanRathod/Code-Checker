@@ -1,5 +1,51 @@
 # Changes Log
 
+## 2026-03-24
+
+- Download all submissions as zip:
+  - Added GET /api/v1/instructor/assignments/{assignment_id}/download endpoint in backend/app/api/v1/endpoints/instructor.py.
+  - Zips all active submissions into folders named by decrypted student ID, with files named using the assignment language extension.
+  - Added "Download Submissions" button (Archive icon) to frontend/src/pages/AssignmentDetails.tsx header, next to Export PDF and Run Analysis Now.
+
+- Download individual submission from ComparisonView:
+  - Added GET /api/v1/instructor/submissions/{submission_id}/download endpoint in backend/app/api/v1/endpoints/instructor.py.
+  - Zips all files for a single submission, verifies instructor ownership through assignment/course chain.
+  - Added source_submission_id and target_submission_id to GET /api/v1/instructor/comparisons/{comparison_id} response.
+  - Added Download button to each panel header (Source Document / Target Document) in frontend/src/pages/ComparisonView.tsx.
+
+- Fixed duplicate analysis results on re-run:
+  - backend/app/api/v1/endpoints/analysis.py now deletes all existing ComparisonResult records for the assignment's submissions before inserting fresh results.
+  - Prevents duplicate rows from accumulating when "Run Analysis Now" is clicked multiple times.
+
+- Boilerplate / starter code exclusion:
+  - POST /api/v1/instructor/assignments now accepts an optional boilerplate_file via multipart form (switched from JSON body to Form fields + UploadFile).
+  - Uploaded boilerplate is stored in MinIO at boilerplate/{assignment_id}/{filename} and a Boilerplate DB record is created with cached content.
+  - backend/app/api/v1/endpoints/analysis.py now loads boilerplate records before N×N comparison, fingerprints the boilerplate code, and calls scorer.remove_boilerplate() on every student's fingerprints to exclude starter code from similarity scoring.
+  - frontend/src/pages/Dashboard.tsx Create Assignment modal now includes a dashed file upload zone for boilerplate (.java, .c, .cpp, .zip) with helper text explaining exclusion behavior.
+  - Frontend form submission switched from JSON to multipart/form-data.
+
+- Edit existing assignment:
+  - Added PATCH /api/v1/instructor/assignments/{assignment_id} endpoint in backend/app/api/v1/endpoints/instructor.py.
+  - Accepts optional form fields: title, course_code, language, deadline, boilerplate_file. Only updates provided fields. Submissions are not affected.
+  - If a new boilerplate file is uploaded, the old one is deleted from MinIO and DB before storing the replacement.
+  - frontend/src/pages/Dashboard.tsx now has a pencil (edit) icon button on each assignment card.
+  - Clicking the pencil opens the same create modal pre-filled with existing values, title changes to "Edit Assignment", submit button changes to "Save Changes", and form sends PATCH instead of POST.
+
+- Clickable heatmap cells in Similarity Matrix:
+  - frontend/src/pages/AssignmentDetails.tsx heatmap cells with a comparison now use pointer cursor and navigate to /instructor/compare/{comparison_id} on click.
+  - Diagonal cells and cells with no comparison data are not clickable.
+  - Tooltip includes "Click to inspect" for clickable cells.
+
+- Auto-close assignments past deadline:
+  - Added effective_status() helper in backend/app/api/v1/endpoints/instructor.py that returns "Closed" when an assignment's deadline has passed and its stored status is "Open".
+  - Applied to all three response points: GET /assignments list, GET /assignments/{id} detail, and PATCH /assignments/{id} update.
+  - Computed at read time — no DB writes or background jobs needed. Extending the deadline via edit will flip status back to "Open" automatically.
+  - No frontend changes required — existing badge styling already handles "Closed" status (gray badge).
+
+- Merge conflict resolution:
+  - Resolved merge conflicts in frontend/src/pages/AssignmentDetails.tsx: merged new tabbed UI (overview/results/clusters sidebar, analytics metrics, distribution chart, similarity matrix heatmap) with download submissions functionality.
+  - Resolved merge conflicts in backend/app/api/v1/endpoints/analysis.py: kept Option A (clear-before-rerun) approach over the incoming skip-existing-pairs approach.
+
 ## 2026-03-19
 
 - Fixed critical ORM metadata split by unifying SQLAlchemy Base usage:
