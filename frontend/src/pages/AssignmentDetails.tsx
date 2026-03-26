@@ -20,6 +20,8 @@ const AssignmentDetails: React.FC = () => {
   const [showAnalysisMenu, setShowAnalysisMenu] = useState(false);
   const [showRepoModal, setShowRepoModal] = useState(false);
   const [selectedRepoIds, setSelectedRepoIds] = useState<string[]>([]);
+  const [selectedSimilarityRange, setSelectedSimilarityRange] = useState('All');
+  const [similaritySortOrder, setSimilaritySortOrder] = useState<'desc' | 'asc'>('desc');
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -140,6 +142,29 @@ const AssignmentDetails: React.FC = () => {
       maxInDist: Math.max(...dist) || 1
     };
   }, [comparisons]);
+
+  const filteredAndSortedComparisons = useMemo(() => {
+  const filtered = comparisons.filter((c) => {
+    switch (selectedSimilarityRange) {
+      case '0-20':
+        return c.score >= 0 && c.score <= 20;
+      case '21-40':
+        return c.score >= 21 && c.score <= 40;
+      case '41-60':
+        return c.score >= 41 && c.score <= 60;
+      case '61-80':
+        return c.score >= 61 && c.score <= 80;
+      case '81-100':
+        return c.score >= 81 && c.score <= 100;
+      default:
+        return true;
+    }
+  });
+
+  return [...filtered].sort((a, b) => {
+    return similaritySortOrder === 'desc' ? b.score - a.score : a.score - b.score;
+  });
+}, [comparisons, selectedSimilarityRange, similaritySortOrder]);
 
   if (loading) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Loading assignment details...</div>;
   if (!assignment) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Assignment not found.</div>;
@@ -548,18 +573,41 @@ const AssignmentDetails: React.FC = () => {
             <AnimateTab tab={activeTab} target="results">
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                   <h2 style={{ fontSize: '1.5rem' }}>Pairwise Similarities</h2>
-                  <div className="input-with-icon">
-                    <Search />
-                    <input type="text" placeholder="Search Encrypted ID..." className="form-input" style={{ width: '280px', background: 'var(--bg-surface)' }} />
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <select
+                      value={selectedSimilarityRange}
+                      onChange={(e) => setSelectedSimilarityRange(e.target.value)}
+                      className="form-input"
+                      style={{ width: '170px', background: 'var(--bg-surface)', cursor: 'pointer' }}
+                    >
+                      <option value="All">All Scores</option>
+                      <option value="0-20">0% - 20%</option>
+                      <option value="21-40">21% - 40%</option>
+                      <option value="41-60">41% - 60%</option>
+                      <option value="61-80">61% - 80%</option>
+                      <option value="81-100">81% - 100%</option>
+                    </select>
+
+                    <div className="input-with-icon">
+                      <Search />
+                      <input
+                        type="text"
+                        placeholder="Search Encrypted ID..."
+                        className="form-input"
+                        style={{ width: '280px', background: 'var(--bg-surface)' }}
+                      />
+                    </div>
                   </div>
                </div>
 
                <div className="glass-card" style={{ padding: '0', overflowX: 'auto' }}>
-                 {comparisons.length === 0 ? (
+                 {filteredAndSortedComparisons.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '4rem 1rem', color: 'var(--text-secondary)' }}>
                       <FileWarning size={48} style={{ margin: '0 auto 1rem auto', opacity: 0.3 }} />
-                      <h3 style={{ marginBottom: '0.5rem' }}>No Analysis Results Yet</h3>
-                      <p style={{ fontSize: '0.9rem' }}>Click "Run Graph Setup" above to start comparing.</p>
+                      <h3 style={{ marginBottom: '0.5rem' }}>No Matching Results</h3>
+                      <p style={{ fontSize: '0.9rem' }}>
+                        No pairwise similarities match the selected filter.
+                      </p>
                     </div>
                  ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -567,13 +615,46 @@ const AssignmentDetails: React.FC = () => {
                         <tr style={{ borderBottom: '2px solid var(--border-subtle)', background: 'var(--bg-surface-raised)', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
                           <th style={{ padding: '1rem', fontWeight: 600 }}>Source ID (Encrypted)</th>
                           <th style={{ padding: '1rem', fontWeight: 600 }}>Target ID (Encrypted)</th>
-                          <th style={{ padding: '1rem', fontWeight: 600 }}>Similarity Score</th>
+                          <th style={{ padding: '1rem', fontWeight: 600 }}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSimilaritySortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))
+                              }
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                background: 'transparent',
+                                border: 'none',
+                                padding: 0,
+                                cursor: 'pointer',
+                                color: 'inherit',
+                                fontWeight: 'inherit',
+                                fontSize: 'inherit',
+                                fontFamily: 'inherit',
+                                letterSpacing: 'inherit',
+                                textTransform: 'inherit'
+                              }}
+                            >
+                              Similarity Score
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  transform: similaritySortOrder === 'desc' ? 'rotate(0deg)' : 'rotate(180deg)',
+                                  transition: 'transform 0.2s ease'
+                                }}
+                              >
+                                ▼
+                              </span>
+                            </button>
+                          </th>
                           <th style={{ padding: '1rem', fontWeight: 600 }}>Risk Level</th>
                           <th style={{ padding: '1rem', fontWeight: 600, textAlign: 'right' }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {comparisons.map((c, i) => (
+                        {filteredAndSortedComparisons.map((c, i) => (
                           <tr
                             key={c.id}
                             style={{ borderBottom: '1px solid var(--border-subtle)', transition: 'background var(--transition-fast)' }}

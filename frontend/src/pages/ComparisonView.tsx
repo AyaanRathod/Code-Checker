@@ -283,7 +283,7 @@ const ComparisonView: React.FC = () => {
   };
 
   return (
-    <div className="main-content" style={{ display: 'flex', flexDirection: 'column', position: 'relative', flex: 1 }}>
+    <div className="main-content" style={{ display: 'flex', flexDirection: 'column', position: 'fixed', inset: 0, minHeight:0, overflow: 'hidden',  background: 'var(--bg-base)'}}>
 
       {/* Top Navigation & Status Header */}
       <div style={{ padding: '1.25rem 2.5rem', background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
@@ -349,10 +349,10 @@ const ComparisonView: React.FC = () => {
       </div>
 
       {/* Editor Main Split Pane */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minWidth: 0 }}>
+      <div style={{ display: 'flex', overflow: 'hidden', minWidth: 0 , minHeight: 0, flex: 1}}>
 
         {/* Source Side */}
-        <div style={{ flex: 1, borderRight: '2px solid var(--border-strong)', display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)', minWidth: 0, position: 'relative' }}>
+        <div style={{ flex: 1, borderRight: '2px solid var(--border-strong)', display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)', minWidth: 0, minHeight: 0, height: '100%', position: 'relative' }}>
           <div style={{ padding: '0.75rem 1.5rem', background: 'var(--bg-surface-raised)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, borderBottom: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Source Document</span>
@@ -381,7 +381,7 @@ const ComparisonView: React.FC = () => {
             )}
           </div>
           <FileTabBar files={sourceFiles} activeIdx={sourceFileIdx} onSelect={setSourceFileIdx} side="source" />
-          <div style={{ flex: 1, padding: '1.5rem 0', paddingBottom: '8rem', overflow: 'auto', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.6 }}>
+          <div style={{ flex: 1, minHeight: 0, padding: '1.5rem 0', paddingBottom: '8rem', overflow: 'auto', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.6 }}>
             {currentSourceCode.split('\n').map((line: string, i: number) => {
               const style = getStyleForLine(i, sMap);
               const isClickable = style.blockId !== -1;
@@ -411,7 +411,7 @@ const ComparisonView: React.FC = () => {
         </div>
 
         {/* Target Side */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)', minWidth: 0, position: 'relative' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)', minWidth: 0, minHeight: 0, height: '100%', position: 'relative' }}>
           <div style={{ padding: '0.75rem 1.5rem', background: 'var(--bg-surface-raised)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, borderBottom: '1px solid var(--border-subtle)' }}>
              <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Target Document</span>
@@ -440,7 +440,7 @@ const ComparisonView: React.FC = () => {
             )}
           </div>
           <FileTabBar files={targetFiles} activeIdx={targetFileIdx} onSelect={setTargetFileIdx} side="target" />
-          <div style={{ flex: 1, padding: '1.5rem 0', paddingBottom: '8rem', overflow: 'auto', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.6 }}>
+          <div style={{ flex: 1, minHeight: 0, padding: '1.5rem 0', paddingBottom: '8rem', overflow: 'auto', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.6 }}>
              {currentTargetCode.split('\n').map((line: string, i: number) => {
                const style = getStyleForLine(i, tMap);
                const isClickable = style.blockId !== -1;
