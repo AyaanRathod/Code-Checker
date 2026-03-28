@@ -64,12 +64,12 @@ def calculate_similarity(fingerprint_a: List[Dict[str, Any]], fingerprint_b: Lis
     # We loop through the original dictionaries and grab the start/end
     # indices only if their hash is in our matched_hashes set.
     ranges_a = [
-        {"start": fp["start_idx"], "end": fp["end_idx"]} 
+        {"start": fp["start_idx"], "end": fp["end_idx"], "file_index": fp.get("file_index", 0)}
         for fp in fingerprint_a if fp['hash'] in matched_hashes
     ]
-    
+
     ranges_b = [
-        {"start": fp["start_idx"], "end": fp["end_idx"]} 
+        {"start": fp["start_idx"], "end": fp["end_idx"], "file_index": fp.get("file_index", 0)}
         for fp in fingerprint_b if fp['hash'] in matched_hashes
     ]
 

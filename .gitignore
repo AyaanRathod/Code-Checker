@@ -23,3 +23,15 @@ docker-compose.override.yml
 # Postgres/Data
 postgres_data/
 minio_data/
+
+# MinIO
+Software Requirements.pdf
+SRS.pdf
+SRS_Final.pdf
+SRS.pdf
+
+.agents
+srs.md
+
+skills-lock.json
+skills.json
