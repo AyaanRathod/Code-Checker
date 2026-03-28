@@ -18,11 +18,11 @@ class AnalysisService:
     def calculate_similarity_score(self, source_fp: List[Dict], target_fp: List[Dict]):
         """Calculate containment and match ranges."""
         try:
-            score, ranges_a, ranges_b = scorer.calculate_similarity(source_fp, target_fp)
-            return score, ranges_a, ranges_b
+            score, ranges_a, ranges_b, matched_pairs = scorer.calculate_similarity(source_fp, target_fp)
+            return score, ranges_a, ranges_b, matched_pairs
         except Exception as e:
             print(f"Error calculating similarity: {e}")
-            return 0.0, [], []
+            return 0.0, [], [], []
 
     def detect_collusion_clusters(self, all_comparisons: List[Dict], threshold: float = 80.0) -> List[List[str]]:
         """

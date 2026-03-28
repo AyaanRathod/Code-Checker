@@ -24,7 +24,7 @@ class SubmissionRepository(BaseRepository[Submission, SubmissionCreate, Submissi
             select(Submission).where(
                 Submission.assignment_id == assignment_id,
                 Submission.status == 'Active'
-            )
+            ).order_by(Submission.timestamp.asc(), Submission.id.asc())
         )
         return list(result.scalars().all())
         

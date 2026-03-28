@@ -558,18 +558,45 @@ async def get_comparison_detail(
     sf_query = select(StoredFile).where(StoredFile.submission_id == comparison.source_submission.id).order_by(StoredFile.storage_path)
     s_files = (await db.execute(sf_query)).scalars().all()
 
-    source_range_lookup = {item["filename"]: item["ranges"] for item in meta.get("source_files", [])}
+    source_range_lookup_by_index = {}
+    source_range_lookup_by_name = {}
+    for item in meta.get("source_files", []):
+        ranges = item.get("ranges", [])
+        if "file_index" in item:
+            try:
+                source_range_lookup_by_index[int(item["file_index"])] = ranges
+            except (TypeError, ValueError):
+                pass
+        fname = item.get("filename")
+        if fname:
+            source_range_lookup_by_name[fname] = ranges
+
     source_files_out = []
-    for f in s_files:
+    for file_index, f in enumerate(s_files):
         fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
         try:
             code = storage_service.download_file(f.storage_path).decode('utf-8')
         except Exception as e:
             code = f"Error downloading file: {str(e)}"
-        source_files_out.append({"filename": fname, "code": code, "ranges": source_range_lookup.get(fname, [])})
+        ranges = source_range_lookup_by_index.get(file_index)
+        if ranges is None:
+            ranges = source_range_lookup_by_name.get(fname, [])
+        source_files_out.append({"file_index": file_index, "filename": fname, "code": code, "ranges": ranges})
 
     # Target side — depends on comparison type
-    target_range_lookup = {item["filename"]: item["ranges"] for item in meta.get("target_files", [])}
+    target_range_lookup_by_index = {}
+    target_range_lookup_by_name = {}
+    for item in meta.get("target_files", []):
+        ranges = item.get("ranges", [])
+        if "file_index" in item:
+            try:
+                target_range_lookup_by_index[int(item["file_index"])] = ranges
+            except (TypeError, ValueError):
+                pass
+        fname = item.get("filename")
+        if fname:
+            target_range_lookup_by_name[fname] = ranges
+
     target_files_out = []
 
     if comp_type == "cross_repo" and comparison.target_repo_submission_id:
@@ -587,13 +614,16 @@ async def get_comparison_detail(
         tf_query = select(StoredFile).where(StoredFile.submission_id == comparison.target_submission.id).order_by(StoredFile.storage_path)
         t_files = (await db.execute(tf_query)).scalars().all()
 
-    for f in t_files:
+    for file_index, f in enumerate(t_files):
         fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
         try:
             code = storage_service.download_file(f.storage_path).decode('utf-8')
         except Exception as e:
             code = f"Error downloading file: {str(e)}"
-        target_files_out.append({"filename": fname, "code": code, "ranges": target_range_lookup.get(fname, [])})
+        ranges = target_range_lookup_by_index.get(file_index)
+        if ranges is None:
+            ranges = target_range_lookup_by_name.get(fname, [])
+        target_files_out.append({"file_index": file_index, "filename": fname, "code": code, "ranges": ranges})
 
     s_code = source_files_out[0]["code"] if source_files_out else "No Source File Found"
     t_code = target_files_out[0]["code"] if target_files_out else "No Target File Found"
