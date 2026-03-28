@@ -1,5 +1,137 @@
 # Changes Log
 
+## 2026-03-28
+
+- CODE CLEANUP: Comparison View large-file refactor for maintainability (no behavior change intended):
+  - Extracted shared comparison domain types to `frontend/src/components/comparison/types.ts`.
+  - Extracted comparison parsing/highlight/filter utilities to `frontend/src/components/comparison/comparisonUtils.ts`.
+  - Extracted comparison data-fetching flow (base payload + related matches) to `frontend/src/components/comparison/useComparisonData.ts`.
+  - Extracted reusable UI building blocks from `frontend/src/pages/ComparisonView.tsx`:
+    - `frontend/src/components/comparison/FileTabBar.tsx`
+    - `frontend/src/components/comparison/CodePane.tsx`
+    - `frontend/src/components/comparison/FloatingMatchNavigator.tsx`
+  - Updated `frontend/src/components/comparison/RelatedMatchesSidebar.tsx` to consume shared `OtherAssignmentMatch` typing from `types.ts`.
+  - Updated `frontend/src/pages/ComparisonView.tsx` to use extracted modules, reducing inline duplication and improving separation of concerns for future edits.
+
+- CODE CLEANUP: Student Portal large-file refactor for maintainability (no behavior change intended):
+  - Extracted Student Portal domain types to `frontend/src/components/student-portal/types.ts`.
+  - Extracted upload parsing/receipt/time formatting helpers to `frontend/src/components/student-portal/studentPortalUtils.ts`.
+  - Extracted submission state + API + file-drop orchestration to `frontend/src/hooks/useStudentPortalSubmission.ts`.
+  - Extracted success/receipt UI to `frontend/src/components/student-portal/StudentSubmissionSuccess.tsx`.
+  - Extracted submission form/upload preview UI to `frontend/src/components/student-portal/StudentSubmissionForm.tsx`.
+  - Refactored `frontend/src/pages/StudentPortal.tsx` into a lean composition layer using the new hook/components.
+  - Added `frontend/src/types/jszip.d.ts` for explicit local JSZip typings and stronger type-safety around zip preview handling.
+  - Installed missing declared frontend dependency (`jszip`) in `frontend/node_modules` to restore production bundling.
+
+- CODE CLEANUP: Assignment Details large-file refactor for maintainability (no behavior change intended):
+  - Added shared Assignment Details domain types in `frontend/src/components/assignment-details/types.ts`.
+  - Added reusable utilities in `frontend/src/components/assignment-details/assignmentDetailsUtils.ts` for byte formatting, metrics, filtering/sorting, and matrix support helpers.
+  - Added data orchestration hook in `frontend/src/hooks/useAssignmentDetailsData.ts` to centralize data loading, analysis triggers, download flow, responsive state, and derived view-model state.
+  - Added extracted UI modules in `frontend/src/components/assignment-details/`:
+    - `AssignmentDetailsHeader.tsx`
+    - `RepositorySelectionModal.tsx`
+    - `AssignmentDetailsSidebar.tsx`
+    - `PairwiseResultsTab.tsx`
+    - `SimilarityMatrixTab.tsx`
+  - Refactored `frontend/src/pages/AssignmentDetails.tsx` into a lean orchestration layer that composes extracted modules while preserving existing behavior.
+  - Preserved matrix cell click-through navigation to comparison detail (`/instructor/compare/{comparison_id}`) via the new matrix component.
+
+- CODE CLEANUP: Dashboard page modularization for maintainability (no behavior change intended):
+  - Extracted active assignment card rendering into `frontend/src/components/dashboard/ActiveAssignmentCard.tsx`.
+  - Extracted repository list/empty-state/upload strip into `frontend/src/components/dashboard/RepositoriesSection.tsx`.
+  - Extracted archived assignments accordion/list into `frontend/src/components/dashboard/ArchivedAssignmentsSection.tsx`.
+  - Refactored `frontend/src/pages/Dashboard.tsx` into a thinner orchestration layer focused on state/actions/composition.
+  - Removed redundant post-save loader toggle in Dashboard submit flow to avoid stale loading state after create/edit.
+
+- CODE CLEANUP: Dashboard architecture refactor (specific module split for maintainability/testing):
+  - Added typed domain models in `frontend/src/types/dashboard.ts`:
+    - Introduced `Assignment`, `Repository`, `AssignmentFormState`, `AssignmentFilter`, and `DashboardStats` to replace untyped page-level state.
+  - Added API boundary in `frontend/src/api/dashboardApi.ts`:
+    - Moved Dashboard axios calls into dedicated functions (`fetch/create/update/archive assignment`, `fetch/upload/delete repository`).
+    - Centralized auth header/multipart handling to avoid repeated inline request setup.
+  - Added stateful data hook in `frontend/src/hooks/useDashboardData.ts`:
+    - Centralized token-guarded data loading and mutation flow for assignments/repositories.
+    - Added shared backend error-message extraction helper used by UI actions.
+  - Added Dashboard UI component modules in `frontend/src/components/dashboard/`:
+    - `AssignmentModal.tsx` (create/edit assignment modal form)
+    - `RepositoryUploadModal.tsx` (repository upload modal form)
+    - `DashboardHeaderStats.tsx` (top summary + search/filter controls)
+    - `FileDropInput.tsx` (shared drag/drop upload control used by both modals)
+  - Updated `frontend/src/pages/Dashboard.tsx`:
+    - Rewired page to consume the new hook/API/components and typed models.
+    - Preserved existing behaviors (create/edit/archive, repository upload/delete, filtering/search, cards/sections).
+    - Reduced page complexity by moving large modal/header/upload blocks out of the main page file.
+
+- CODE CLEANUP: Frontend page decomposition and component extraction:
+  - Added reusable component folder structure for large-page decomposition:
+    - `frontend/src/components/assignment-details/`
+    - `frontend/src/components/comparison/`
+  - Extracted large Assignment Details sections into dedicated components:
+    - `SubmissionsTab.tsx` (summary cards + responsive submission list/table)
+    - `AnalyticsOverviewTab.tsx` (analytics cards + responsive distribution chart)
+  - Extracted Comparison View related matches panel into dedicated component:
+    - `RelatedMatchesSidebar.tsx` (unified sidebar header, filters, list rendering, mobile close behavior)
+  - Updated page files to consume extracted components while preserving existing behavior/state flow:
+    - `frontend/src/pages/AssignmentDetails.tsx`
+    - `frontend/src/pages/ComparisonView.tsx`
+  - Goal of refactor: reduce oversized page file complexity, improve maintainability, and enable safer reuse of major UI sections.
+
+- FRONTEND: Mobile optimization and UX/QoL pass across all primary pages:
+  - Team note: current brand/logo in header is text-rendered (not PNG). If/when replaced with a PNG/SVG asset, adjust header spacing and size tokens to preserve mobile compactness.
+  - Global responsiveness baseline in `frontend/src/index.css`:
+    - Added mobile breakpoints for buttons, form controls, and table behavior.
+    - Improved small-screen touch target sizing and tighter typographic scale.
+  - App shell updates in `frontend/src/App.tsx`:
+    - Global header/footer now wrap cleanly on narrow viewports.
+    - Reduced horizontal padding pressure to prevent clipping.
+    - Mobile header typography and logo text sizing reduced further for a lighter top footprint.
+  - Comparison View improvements in `frontend/src/pages/ComparisonView.tsx`:
+    - Reworked Related Student Matches into a unified sidebar header layout (title + controls integrated in one sticky section) to remove stacked-header clutter and better match a sidebar navigation pattern.
+    - Added collapsible Related Student Matches behavior through the header-level Show Matches / Hide Matches control (single control path for panel visibility).
+    - Added compact-header toggle controls and refined header density behavior for better vertical workspace usage.
+    - Compact header now significantly denser (reduced paddings, tighter labels/chips, condensed controls).
+    - Mobile pane headers and code typography tightened for smaller screens.
+    - Floating match navigator reduced footprint on mobile.
+    - Added mobile-specific in-panel Close control + backdrop click-to-close for matches panel usability when the panel overlays header controls.
+    - Reduced mobile matches panel width so it does not dominate viewport space.
+    - Kept header-level button as the primary source of truth for panel visibility.
+  - Assignment Details improvements in `frontend/src/pages/AssignmentDetails.tsx`:
+    - Added responsive layout detection and mobile-specific rendering behavior.
+    - Converted desktop sidebar into a horizontal scrollable mobile tab strip.
+    - Added desktop collapsible sidebar (expanded panel -> icon rail) with persisted collapse state via localStorage.
+    - Header actions now wrap without overflowing.
+    - Submissions and Pairwise Similarities now use card-based mobile views instead of dense desktop tables.
+    - Desktop table/grid behavior preserved for larger screens.
+    - Fixed mobile overlap in Similarity Distribution chart labels by enabling horizontal scroll and mobile-optimized label sizing.
+  - Dashboard improvements in `frontend/src/pages/Dashboard.tsx`:
+    - Both modals now use viewport-constrained responsive widths/heights.
+    - Instructor nav wraps properly on small screens.
+    - Assignment grid minimum width reduced for small tablets/phones.
+    - Main content spacing tightened for mobile.
+  - Repositories page improvements in `frontend/src/pages/Repositories.tsx`:
+    - Upload modal made responsive with viewport bounds and internal scrolling.
+    - Top nav and page header now wrap cleanly on narrow screens.
+    - Repository grid min width reduced to avoid horizontal overflow.
+  - Student/Instructor entry screens:
+    - `frontend/src/pages/StudentPortal.tsx`: receipt rows wrap safely and action buttons stack responsively.
+    - `frontend/src/pages/InstructorLogin.tsx`: compacted spacing for smaller/shorter screens.
+
+- Comparison reliability and UX improvements:
+  - Added linked match identity model (`matched_pairs`) end-to-end so highlights are explicitly paired across source/target panes.
+  - Updated frontend comparison navigation to sync by linked match ID, including auto-switching file tabs when the linked region is in a different file.
+  - Active linked match is now emphasized in both panes while non-selected highlights are dimmed for clearer equivalence.
+  - Reduced over-highlighting by pairing repeated hash occurrences up to min frequency per shared hash.
+  - Merged nearby raw fingerprint pairs into larger linked blocks to reduce noisy, inflated match counts.
+  - Added stricter weak/generic block filtering (minimum span/hash-count/pair-count) to suppress low-value matches.
+  - Similarity score now reflects retained quality-filtered evidence, reducing generic-pattern inflation.
+  - UI now shows active linked match confidence and span context.
+  - Added an inline Similarity Score help hint (`?`) in Comparison View explaining that weak/generic matches are excluded before score calculation.
+  - Calibrated sensitivity for verbose languages (e.g., Java): `DEFAULT_K` changed from 5 -> 20, `DEFAULT_WINDOW_SIZE` changed from 4 -> 10, and `MIN_BLOCK_CHARS` changed from 45 -> 120 to suppress scaffolding-heavy false positives.
+  - Fixed asymmetric score denominator in scorer (now uses smaller side for symmetric containment-style scoring).
+  - Added deterministic ordering for active submissions used during pair generation.
+  - Comparison detail endpoint now maps ranges by `file_index` first (with filename fallback for older metadata) and includes `file_index` in response files.
+  - Detailed rationale and rollout notes documented in `docs/comparison-reliability-fixes-2026-03-28.md`.
+
 ## 2026-03-25
 
 - File clear/replace UX across all upload zones:
