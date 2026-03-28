@@ -12,6 +12,7 @@ import './index.css';
 
 const GlobalHeader = () => {
   const location = useLocation();
+  const isFacultyRoute = location.pathname.startsWith('/instructor');
   // Hide header on detail pages since they have their own navigation
   if (location.pathname.includes('/assignment/') || location.pathname.includes('/compare/') || location.pathname.includes('/repositories')) {
     return null;
@@ -29,8 +30,8 @@ const GlobalHeader = () => {
       </Link>
       
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <Link to="/instructor/dashboard" style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.9rem', fontWeight: 600, padding: '0.5rem 1rem', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 'var(--radius-sm)', transition: 'all 0.2s', textDecoration: 'none' }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}>
-          Faculty Access
+        <Link to={isFacultyRoute ? "/" : "/instructor/dashboard"} style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.9rem', fontWeight: 600, padding: '0.5rem 1rem', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 'var(--radius-sm)', transition: 'all 0.2s', textDecoration: 'none' }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}>
+          {isFacultyRoute ? 'Submission Page' : 'Faculty Access'}
         </Link>
       </div>
     </div>
@@ -79,3 +80,4 @@ function App() {
 }
 
 export default App;
+

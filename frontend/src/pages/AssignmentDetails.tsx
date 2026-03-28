@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Play, AlertTriangle, CheckCircle, Search, Download, BookOpen, Clock, FileWarning, LayoutDashboard, Database, Activity, GitCommit, Archive, Users, FileCode, Hash, Flag, ChevronDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
@@ -9,12 +9,13 @@ type TabView = 'submissions' | 'overview' | 'results' | 'clusters';
 const AssignmentDetails: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [assignment, setAssignment] = useState<any>(null);
   const [comparisons, setComparisons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [triggering, setTriggering] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabView>('submissions');
+  const [activeTab, setActiveTab] = useState<TabView>((location.state as { initialTab?: TabView } | null)?.initialTab || 'submissions');
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [repositories, setRepositories] = useState<any[]>([]);
   const [showAnalysisMenu, setShowAnalysisMenu] = useState(false);
