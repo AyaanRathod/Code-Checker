@@ -58,9 +58,9 @@ Require-Command -Name "curl.exe"
 Require-Command -Name "docker"
 
 Write-Step "Health check"
-$health = Invoke-CurlJson -Args @("-sS", "-X", "GET", "$BaseUrl/health")
+$health = Invoke-CurlJson -Args @("-sS", "-X", "GET", "$BaseUrl/api/v1/health")
 if (-not $health -or $health.status -ne "ok") {
-    throw "Backend health check failed at $BaseUrl/health"
+    throw "Backend health check failed at $BaseUrl/api/v1/health"
 }
 Write-Host "Backend is healthy."
 
