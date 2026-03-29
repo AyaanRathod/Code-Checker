@@ -301,4 +301,4 @@ async def trigger_analysis(
 
     # Queue worker
     background_tasks.add_task(perform_full_analysis, assignment_id, repo_ids)
-    return {"message": "Analysis started in background"}
+    return {"message": "Analysis started in backgroun"}
