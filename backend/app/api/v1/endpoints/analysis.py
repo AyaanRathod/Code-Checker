@@ -133,10 +133,10 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
                     if not s_fp or not t_fp:
                         continue
 
-                    score, ranges_a, ranges_b = analysis_service.calculate_similarity_score(s_fp, t_fp)
+                    score, ranges_a, ranges_b, matched_pairs = analysis_service.calculate_similarity_score(s_fp, t_fp)
 
-                    # Create DB record if score > 0 (or some threshold) to save space
-                    if score > 0:
+                    # Create DB record for all comparisons, even if score is 0
+                    if score >= 0:
                         # Group match ranges by file_index for per-file metadata
                         s_file_ranges = defaultdict(list)
                         for r in ranges_a:
@@ -158,7 +158,8 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
 
                         metadata = {
                             "source_files": source_files_meta,
-                            "target_files": target_files_meta
+                            "target_files": target_files_meta,
+                            "matched_pairs": matched_pairs
                         }
                         data = ComparisonResultCreate(
                             source_submission_id=source.id,
@@ -228,9 +229,9 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
                             if not t_fp:
                                 continue
 
-                            score, ranges_a, ranges_b = analysis_service.calculate_similarity_score(s_fp, t_fp)
+                            score, ranges_a, ranges_b, matched_pairs = analysis_service.calculate_similarity_score(s_fp, t_fp)
 
-                            if score > 0:
+                            if score >= 0:
                                 s_file_ranges = defaultdict(list)
                                 for r in ranges_a:
                                     s_file_ranges[r.get("file_index", 0)].append({"start": r["start"], "end": r["end"]})
@@ -252,6 +253,7 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
                                 metadata = {
                                     "source_files": source_files_meta,
                                     "target_files": target_files_meta,
+                                    "matched_pairs": matched_pairs,
                                     "repo_name": repo_obj.name,
                                     "repo_label": rs.label
                                 }
@@ -299,4 +301,4 @@ async def trigger_analysis(
 
     # Queue worker
     background_tasks.add_task(perform_full_analysis, assignment_id, repo_ids)
-    return {"message": "Analysis started in background"}
+    return {"message": "Analysis started in backgroun"}

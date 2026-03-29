@@ -19,9 +19,9 @@ from typing import List, Set, Dict, Any
 
 # Configuration Constants
 # K: The noise threshold. Matches shorter than K tokens are ignored.
-DEFAULT_K = 5
+DEFAULT_K = 20
 # W: The window size. Larger W = fewer fingerprints (less storage) but coarser granularity.
-DEFAULT_WINDOW_SIZE = 4
+DEFAULT_WINDOW_SIZE = 10
 
 def generate_kgrams(tokens: List[Dict[str, Any]], k: int = DEFAULT_K) -> List[Dict[str, Any]]:
     """

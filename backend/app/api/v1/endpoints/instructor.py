@@ -2,8 +2,8 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete, update
-from datetime import datetime, timezone, timedelta
+from sqlalchemy import select, func
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import io
 import zipfile
@@ -15,10 +15,11 @@ from app.models.instructor import Instructor
 from app.models.course import Course
 from app.models.assignment import Assignment
 from app.models.submission import Submission
+from app.models.boilerplate import Boilerplate
 from app.models.comparison_result import ComparisonResult
 from app.models.stored_file import StoredFile
-from app.models.boilerplate import Boilerplate
 from app.services.storage_service import storage_service
+from app.services.archival_service import effective_status, finalize_archive
 from app.schemas.assignment import AssignmentCreate, AssignmentResponse
 from sqlalchemy.orm import joinedload
 from app.services.encryption_service import encryption_service
@@ -29,91 +30,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 CANADA_TZ = ZoneInfo("America/Toronto")
-ARCHIVE_GRACE_DAYS = 30
-
-
-def effective_status(assignment: Assignment) -> str:
-    """Return the display status, computed at read-time:
-    - 'Closed' if deadline has passed and stored status is 'Open'
-    - 'Archived' if deadline + 30 days has passed and stored status is 'Open' or 'Closed'
-    - Otherwise the stored status
-    """
-    if assignment.status == "Archived":
-        return "Archived"
-    now = datetime.now(timezone.utc)
-    if assignment.deadline:
-        if assignment.status in ("Open", "Closed") and assignment.deadline + timedelta(days=ARCHIVE_GRACE_DAYS) < now:
-            return "Archived"
-        if assignment.status == "Open" and assignment.deadline < now:
-            return "Closed"
-    return assignment.status
-
-
-async def finalize_archive(db: AsyncSession, assignment: Assignment) -> None:
-    """One-time migration: permanently archive an assignment by stripping PII and clearing analysis.
-    Idempotent — safe to call multiple times."""
-    if assignment.status == "Archived":
-        return  # Already finalized in DB
-
-    logger.info("Finalizing archive for assignment %s", assignment.id)
-
-    # 1. Set assignment status to Archived in DB
-    assignment.status = "Archived"
-
-    # 2. Strip PII from all submissions
-    await db.execute(
-        update(Submission)
-        .where(Submission.assignment_id == assignment.id)
-        .values(student_name_encrypted=None, student_id_encrypted=None)
-    )
-
-    # 3. Delete comparison results (analysis data cleared on archive)
-    sub_ids_query = select(Submission.id).where(Submission.assignment_id == assignment.id)
-    sub_ids = [row[0] for row in (await db.execute(sub_ids_query)).all()]
-    if sub_ids:
-        await db.execute(
-            delete(ComparisonResult).where(
-                (ComparisonResult.source_submission_id.in_(sub_ids)) |
-                (ComparisonResult.target_submission_id.in_(sub_ids))
-            )
-        )
-
-    # 4. Auto-create a Repository from the archived submissions
-    from app.models.repository import Repository
-    from app.models.repository_submission import RepositorySubmission
-
-    # Look up the course for a good repo name
-    course_query = await db.execute(select(Course).where(Course.id == assignment.course_id))
-    course = course_query.scalars().first()
-    repo_name = f"{course.course_code} - {assignment.title}" if course else assignment.title
-
-    repo = Repository(
-        instructor_id=course.instructor_id if course else None,
-        name=repo_name,
-        language=assignment.language,
-        source_assignment_id=assignment.id,
-        submission_count=len(sub_ids)
-    )
-    db.add(repo)
-    await db.flush()
-
-    # Create RepositorySubmission entries for each submission and link their stored files
-    for sid in sub_ids:
-        repo_sub = RepositorySubmission(
-            repository_id=repo.id,
-            label=str(sid)[:8]  # Short UUID as label (PII stripped)
-        )
-        db.add(repo_sub)
-        await db.flush()
-
-        # Link existing stored files to the repository submission
-        await db.execute(
-            update(StoredFile)
-            .where(StoredFile.submission_id == sid)
-            .values(repository_submission_id=repo_sub.id)
-        )
-
-    await db.flush()
 
 @router.get("/assignments", response_model=List[dict])
 async def get_instructor_assignments(
@@ -558,18 +474,45 @@ async def get_comparison_detail(
     sf_query = select(StoredFile).where(StoredFile.submission_id == comparison.source_submission.id).order_by(StoredFile.storage_path)
     s_files = (await db.execute(sf_query)).scalars().all()
 
-    source_range_lookup = {item["filename"]: item["ranges"] for item in meta.get("source_files", [])}
+    source_range_lookup_by_index = {}
+    source_range_lookup_by_name = {}
+    for item in meta.get("source_files", []):
+        ranges = item.get("ranges", [])
+        if "file_index" in item:
+            try:
+                source_range_lookup_by_index[int(item["file_index"])] = ranges
+            except (TypeError, ValueError):
+                pass
+        fname = item.get("filename")
+        if fname:
+            source_range_lookup_by_name[fname] = ranges
+
     source_files_out = []
-    for f in s_files:
+    for file_index, f in enumerate(s_files):
         fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
         try:
             code = storage_service.download_file(f.storage_path).decode('utf-8')
         except Exception as e:
             code = f"Error downloading file: {str(e)}"
-        source_files_out.append({"filename": fname, "code": code, "ranges": source_range_lookup.get(fname, [])})
+        ranges = source_range_lookup_by_index.get(file_index)
+        if ranges is None:
+            ranges = source_range_lookup_by_name.get(fname, [])
+        source_files_out.append({"file_index": file_index, "filename": fname, "code": code, "ranges": ranges})
 
     # Target side — depends on comparison type
-    target_range_lookup = {item["filename"]: item["ranges"] for item in meta.get("target_files", [])}
+    target_range_lookup_by_index = {}
+    target_range_lookup_by_name = {}
+    for item in meta.get("target_files", []):
+        ranges = item.get("ranges", [])
+        if "file_index" in item:
+            try:
+                target_range_lookup_by_index[int(item["file_index"])] = ranges
+            except (TypeError, ValueError):
+                pass
+        fname = item.get("filename")
+        if fname:
+            target_range_lookup_by_name[fname] = ranges
+
     target_files_out = []
 
     if comp_type == "cross_repo" and comparison.target_repo_submission_id:
@@ -587,13 +530,16 @@ async def get_comparison_detail(
         tf_query = select(StoredFile).where(StoredFile.submission_id == comparison.target_submission.id).order_by(StoredFile.storage_path)
         t_files = (await db.execute(tf_query)).scalars().all()
 
-    for f in t_files:
+    for file_index, f in enumerate(t_files):
         fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
         try:
             code = storage_service.download_file(f.storage_path).decode('utf-8')
         except Exception as e:
             code = f"Error downloading file: {str(e)}"
-        target_files_out.append({"filename": fname, "code": code, "ranges": target_range_lookup.get(fname, [])})
+        ranges = target_range_lookup_by_index.get(file_index)
+        if ranges is None:
+            ranges = target_range_lookup_by_name.get(fname, [])
+        target_files_out.append({"file_index": file_index, "filename": fname, "code": code, "ranges": ranges})
 
     s_code = source_files_out[0]["code"] if source_files_out else "No Source File Found"
     t_code = target_files_out[0]["code"] if target_files_out else "No Target File Found"

@@ -270,3 +270,79 @@ tr:hover td {
 .stagger-1 { animation-delay: 0.05s; }
 .stagger-2 { animation-delay: 0.1s; }
 .stagger-3 { animation-delay: 0.15s; }
+
+@media (max-width: 1024px) {
+  .btn {
+    padding: 0.55rem 0.85rem;
+    font-size: 0.9rem;
+  }
+
+  th,
+  td {
+    padding: 0.75rem;
+  }
+}
+
+@media (max-width: 768px) {
+  body {
+    line-height: 1.4;
+  }
+
+  .btn {
+    min-height: 40px;
+  }
+
+  .form-input {
+    font-size: 0.88rem;
+    padding: 0.5rem 0.75rem;
+  }
+
+  table {
+    min-width: 640px;
+  }
+
+  .global-header {
+    padding: 0.5rem 0.65rem !important;
+    gap: 0.4rem !important;
+  }
+
+  .global-header-topline {
+    font-size: 0.76rem !important;
+    letter-spacing: 0.7px !important;
+  }
+
+  .global-header-topline-sub {
+    font-size: 0.6rem !important;
+    margin-left: 4px !important;
+  }
+
+  .global-header-title {
+    font-size: 1rem !important;
+    line-height: 1.1;
+  }
+
+  .global-header-switch {
+    padding: 0.35rem 0.65rem !important;
+    font-size: 0.78rem !important;
+  }
+
+  .global-footer {
+    padding: 0.5rem 0.65rem !important;
+    font-size: 0.72rem !important;
+  }
+
+  .global-footer-links {
+    gap: 0.7rem !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .btn {
+    min-height: 38px;
+    font-size: 0.84rem;
+  }
+
+  .form-label {
+    font-size: 0.8rem;
+  }
+}

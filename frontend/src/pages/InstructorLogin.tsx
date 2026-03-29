@@ -41,17 +41,17 @@ const InstructorLogin: React.FC = () => {
   };
 
   return (
-    <div className="main-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '3rem 1rem' }}>
+    <div className="main-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.25rem 0.85rem' }}>
       
       <motion.div 
         className="glass-card" 
-        style={{ width: '100%', maxWidth: '400px', padding: '2.5rem 2rem', background: 'var(--bg-surface)' }}
+        style={{ width: '100%', maxWidth: '400px', padding: '1.45rem 1rem', background: 'var(--bg-surface)' }}
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{ width: '56px', height: '56px', background: 'var(--bg-surface-highest)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', border: '1px solid var(--border-subtle)'}}>
+        <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+          <div style={{ width: '50px', height: '50px', background: 'var(--bg-surface-highest)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', border: '1px solid var(--border-subtle)'}}>
             <Lock size={24} color="var(--brand-red)" />
           </div>
           <h2 style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>Faculty Login</h2>
