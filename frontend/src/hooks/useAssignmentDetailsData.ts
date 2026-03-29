@@ -107,6 +107,7 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
 
         showToast(message, 'success');
         setAssignment((prev) => (prev ? { ...prev, status: 'Analyzing...' } : prev));
+        setTimeout(() => fetchDetails(), 1500);
       } catch (error) {
         console.error(error);
         showToast('Failed to trigger analysis. Ensure students have submitted files first.', 'error');
@@ -114,7 +115,7 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
         setTriggering(false);
       }
     },
-    [assignmentId, showToast]
+    [assignmentId, showToast, fetchDetails]
   );
 
   const downloadSubmissions = useCallback(async () => {
