@@ -49,7 +49,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           return (
             <div key={toast.id} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--radius-md)', padding: '0.85rem 1rem', display: 'flex', alignItems: 'flex-start', gap: '0.65rem', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', animation: 'toastIn 0.2s ease', pointerEvents: 'all' }}>
               <Icon size={17} style={{ color: c.icon, flexShrink: 0, marginTop: '1px' }} />
-              <span style={{ flex: 1, fontSize: '0.875rem', color: c.text, lineHeight: 1.45 }}>{message}</span>
+              <span style={{ flex: 1, fontSize: '0.875rem', color: c.text, lineHeight: 1.45 }}>{toast.message}</span>
               <button onClick={() => dismiss(toast.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.text, opacity: 0.45, padding: 0, flexShrink: 0, display: 'flex' }}>
                 <X size={15} />
               </button>
