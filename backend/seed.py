@@ -56,7 +56,7 @@ async def seed_database():
         await session.commit()
 
         print("=====================================================")
-        print("✅ Database successfully seeded for testing!")
+        print("Database successfully seeded for testing!")
         print("=====================================================")
         print(f"Instructor Login  : faculty@brocku.ca")
         print(f"Instructor Pass   : password123")
