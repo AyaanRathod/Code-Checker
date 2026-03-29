@@ -381,13 +381,20 @@ const ComparisonView: React.FC = () => {
 
             {!compactHeader && <div style={{ height: '40px', width: '1px', background: 'var(--border-strong)' }}></div>}
 
-            {!compactHeader && <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-              <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <Info size={14} color="var(--brand-red)" />
-                The highlighted blocks represent code structure that is mathematically identical between these two students.
-              </span>
-              <span>Click any highlighted block to focus and sync its linked match in both panes. Use J/K or left/right arrows to jump between linked matches in the active panel.</span>
-            </div>}
+            {!compactHeader && (
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.35 }}>
+                <Info size={14} color="var(--brand-red)" style={{ flexShrink: 0 }} />
+                <span>
+                  Linked matching regions are highlighted across both panes. Click a highlight to sync focus.
+                </span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.28rem', marginLeft: '0.15rem', padding: '0.15rem 0.45rem', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-full)', background: 'var(--bg-surface-raised)', color: 'var(--text-tertiary)', fontSize: '0.76rem' }}>
+                  Shortcuts
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', border: '1px solid var(--border-strong)', borderRadius: '6px', padding: '0.02rem 0.28rem', background: 'var(--bg-surface)' }}>J/K</span>
+                  <span style={{ color: 'var(--text-tertiary)' }}>or</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', border: '1px solid var(--border-strong)', borderRadius: '6px', padding: '0.02rem 0.28rem', background: 'var(--bg-surface)' }}>←/→</span>
+                </span>
+              </div>
+            )}
           </div>
 
           {/* File count summary */}

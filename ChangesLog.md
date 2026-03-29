@@ -2,6 +2,11 @@
 
 ## 2026-03-28
 
+- FRONTEND: Dashboard filter/UI simplification for deferred risk feature:
+  - Removed `High Risk` from the Dashboard status filter dropdown in `frontend/src/components/dashboard/DashboardHeaderStats.tsx`.
+  - Removed High-Risk filter branch from Dashboard filtering logic in `frontend/src/pages/Dashboard.tsx`.
+  - Removed the `High-Risk Flags` stat card from the Dashboard summary cards in `frontend/src/components/dashboard/DashboardHeaderStats.tsx`.
+
 - CODE CLEANUP: Comparison View large-file refactor for maintainability (no behavior change intended):
   - Extracted shared comparison domain types to `frontend/src/components/comparison/types.ts`.
   - Extracted comparison parsing/highlight/filter utilities to `frontend/src/components/comparison/comparisonUtils.ts`.

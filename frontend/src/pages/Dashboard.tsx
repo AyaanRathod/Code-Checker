@@ -202,8 +202,7 @@ const Dashboard: React.FC = () => {
       const matchesFilter =
         assignmentFilter === 'All' ||
         (assignmentFilter === 'Open' && assignment.status === 'Open') ||
-        (assignmentFilter === 'Closed' && assignment.status === 'Closed') ||
-        (assignmentFilter === 'High Risk' && Number(assignment.flags || 0) > 0);
+        (assignmentFilter === 'Closed' && assignment.status === 'Closed');
 
       return matchesQuery && matchesFilter;
     });

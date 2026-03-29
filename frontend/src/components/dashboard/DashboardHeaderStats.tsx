@@ -43,10 +43,6 @@ const DashboardHeaderStats: React.FC<DashboardHeaderStatsProps> = ({
           <div style={{ fontSize: '1.15rem', fontWeight: 700, marginTop: '0.1rem' }}>{stats.totalSubmissions}</div>
         </div>
         <div style={{ padding: '0.65rem 0.75rem', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-surface)' }}>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>High-Risk Flags</div>
-          <div style={{ fontSize: '1.15rem', fontWeight: 700, marginTop: '0.1rem', color: stats.totalRiskFlags > 0 ? '#dc2626' : 'var(--text-primary)' }}>{stats.totalRiskFlags}</div>
-        </div>
-        <div style={{ padding: '0.65rem 0.75rem', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', background: 'var(--bg-surface)' }}>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Repositories</div>
           <div style={{ fontSize: '1.15rem', fontWeight: 700, marginTop: '0.1rem' }}>{stats.repoCount}</div>
         </div>
@@ -70,7 +66,6 @@ const DashboardHeaderStats: React.FC<DashboardHeaderStatsProps> = ({
           <option value="All">All statuses</option>
           <option value="Open">Open</option>
           <option value="Closed">Closed</option>
-          <option value="High Risk">High Risk</option>
         </select>
         <button
           type="button"

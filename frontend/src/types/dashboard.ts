@@ -2,7 +2,7 @@ export type AssignmentStatus = 'Open' | 'Closed' | 'Archived';
 
 export type AssignmentLanguage = 'JAVA' | 'CPP' | 'C';
 
-export type AssignmentFilter = 'All' | 'Open' | 'Closed' | 'High Risk';
+export type AssignmentFilter = 'All' | 'Open' | 'Closed';
 
 export interface Assignment {
   id: string;
