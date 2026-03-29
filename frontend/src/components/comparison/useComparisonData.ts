@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import apiClient from '../../lib/apiClient';
 import type { AssignmentComparison, AssignmentSummary, ComparisonData, OtherAssignmentMatch } from './types';
 import { getIdentityTokens } from './comparisonUtils';
-
-const API_BASE = 'http://localhost:8000/api/v1/instructor';
 
 interface UseComparisonDataParams {
   comparisonId?: string;
@@ -34,7 +32,7 @@ export const useComparisonData = ({ comparisonId, navigate }: UseComparisonDataP
       }
 
       try {
-        const response = await axios.get(`${API_BASE}/comparisons/${comparisonId}`, {
+        const response = await apiClient.get(`/instructor/comparisons/${comparisonId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setData(response.data as ComparisonData);
@@ -70,14 +68,14 @@ export const useComparisonData = ({ comparisonId, navigate }: UseComparisonDataP
       setOtherMatchesLoading(true);
 
       try {
-        const assignmentsResponse = await axios.get(`${API_BASE}/assignments`, {
+        const assignmentsResponse = await apiClient.get(`/instructor/assignments`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
         const assignments: AssignmentSummary[] = assignmentsResponse.data;
         const comparisonResults = await Promise.allSettled(
           assignments.map(async (assignment) => {
-            const comparisonsResponse = await axios.get(`${API_BASE}/assignments/${assignment.id}/comparisons`, {
+            const comparisonsResponse = await apiClient.get(`/instructor/assignments/${assignment.id}/comparisons`, {
               headers: { Authorization: `Bearer ${token}` },
             });
 

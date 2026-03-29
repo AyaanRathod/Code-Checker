@@ -1,7 +1,5 @@
-import axios from 'axios';
+import apiClient from '../lib/apiClient';
 import type { Assignment, AssignmentFormState, Repository } from '../types/dashboard';
-
-const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 const buildAuthHeaders = (token: string, isMultipart = false) => ({
   Authorization: `Bearer ${token}`,
@@ -9,7 +7,7 @@ const buildAuthHeaders = (token: string, isMultipart = false) => ({
 });
 
 export const fetchAssignmentsApi = async (token: string): Promise<Assignment[]> => {
-  const response = await axios.get(`${API_BASE_URL}/instructor/assignments`, {
+  const response = await apiClient.get('/instructor/assignments', {
     headers: buildAuthHeaders(token),
   });
 
@@ -17,8 +15,8 @@ export const fetchAssignmentsApi = async (token: string): Promise<Assignment[]> 
 };
 
 export const archiveAssignmentApi = async (token: string, assignmentId: string): Promise<void> => {
-  await axios.post(
-    `${API_BASE_URL}/instructor/assignments/${assignmentId}/archive`,
+  await apiClient.post(
+    `/instructor/assignments/${assignmentId}/archive`,
     {},
     { headers: buildAuthHeaders(token) }
   );
@@ -39,7 +37,7 @@ export const createAssignmentApi = async (
     formData.append('boilerplate_file', boilerplateFile);
   }
 
-  await axios.post(`${API_BASE_URL}/instructor/assignments`, formData, {
+  await apiClient.post('/instructor/assignments', formData, {
     headers: buildAuthHeaders(token, true),
   });
 };
@@ -60,13 +58,13 @@ export const updateAssignmentApi = async (
     formData.append('boilerplate_file', boilerplateFile);
   }
 
-  await axios.patch(`${API_BASE_URL}/instructor/assignments/${assignmentId}`, formData, {
+  await apiClient.patch(`/instructor/assignments/${assignmentId}`, formData, {
     headers: buildAuthHeaders(token, true),
   });
 };
 
 export const fetchRepositoriesApi = async (token: string): Promise<Repository[]> => {
-  const response = await axios.get(`${API_BASE_URL}/repositories/`, {
+  const response = await apiClient.get('/repositories/', {
     headers: buildAuthHeaders(token),
   });
 
@@ -82,13 +80,13 @@ export const uploadRepositoryApi = async (
   formData.append('language', payload.language);
   formData.append('file', payload.file);
 
-  await axios.post(`${API_BASE_URL}/repositories/upload`, formData, {
+  await apiClient.post('/repositories/upload', formData, {
     headers: buildAuthHeaders(token, true),
   });
 };
 
 export const deleteRepositoryApi = async (token: string, repoId: string): Promise<void> => {
-  await axios.delete(`${API_BASE_URL}/repositories/${repoId}`, {
+  await apiClient.delete(`/repositories/${repoId}`, {
     headers: buildAuthHeaders(token),
   });
 };

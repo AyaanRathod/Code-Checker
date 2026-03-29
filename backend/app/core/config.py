@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     MINIO_BUCKET_NAME: str = "submissions"
     MINIO_SECURE: bool = False
 
+    # CORS - comma-separated origins, e.g. "https://yourdomain.com" or "*" for dev
+    ALLOWED_ORIGINS: str = "*"
+
     # Archival scheduler
     ARCHIVE_SCHEDULER_ENABLED: bool = True
     ARCHIVE_SWEEP_INTERVAL_SECONDS: int = 60

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Upload, Trash2, Database, Calendar, Code, X, ShieldCheck, LogOut, UploadCloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
+import apiClient from '../lib/apiClient';
 import { useFileDrop } from '../hooks/useFileDrop';
 
 const Repositories: React.FC = () => {
@@ -25,7 +25,7 @@ const Repositories: React.FC = () => {
     const token = localStorage.getItem('token');
     if (!token) { navigate('/instructor/login'); return; }
     try {
-      const res = await axios.get('http://localhost:8000/api/v1/repositories/', {
+      const res = await apiClient.get('/repositories/', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setRepos(res.data);
@@ -52,7 +52,7 @@ const Repositories: React.FC = () => {
       formData.append('language', uploadLanguage);
       formData.append('file', uploadFile);
 
-      await axios.post('http://localhost:8000/api/v1/repositories/upload', formData, {
+      await apiClient.post('/repositories/upload', formData, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
       });
 
@@ -72,7 +72,7 @@ const Repositories: React.FC = () => {
     if (!window.confirm(`Delete repository "${repoName}"?\n\nThis will permanently remove all stored files.`)) return;
     const token = localStorage.getItem('token');
     try {
-      await axios.delete(`http://localhost:8000/api/v1/repositories/${repoId}`, {
+      await apiClient.delete(`/repositories/${repoId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setRepos(repos.filter(r => r.id !== repoId));

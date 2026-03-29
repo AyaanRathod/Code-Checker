@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import axios from 'axios';
+import apiClient from '../lib/apiClient';
 import { useFileDrop } from './useFileDrop';
 import {
   ACCEPTED_UPLOAD,
@@ -12,8 +12,6 @@ import type {
   StudentSubmissionFormState,
   SubmissionSuccessData,
 } from '../components/student-portal/types';
-
-const API_URL = 'http://localhost:8000/api/v1/student/submit';
 
 export const useStudentPortalSubmission = () => {
   const [formState, setFormState] = useState<StudentSubmissionFormState>({
@@ -67,7 +65,7 @@ export const useStudentPortalSubmission = () => {
       payload.append('file', file);
 
       try {
-        const response = await axios.post(API_URL, payload, {
+        const response = await apiClient.post('/student/submit', payload, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         setSuccessData(response.data as SubmissionSuccessData);

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../lib/apiClient';
 import { motion } from 'framer-motion';
 import { Lock, ArrowRight, Mail, Key } from 'lucide-react';
 
@@ -21,7 +21,7 @@ const InstructorLogin: React.FC = () => {
       params.append('username', email);
       params.append('password', password);
 
-      const response = await axios.post('http://localhost:8000/api/v1/auth/login', params, {
+      const response = await apiClient.post('/auth/login', params, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         }

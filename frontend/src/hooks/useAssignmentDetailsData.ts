@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import apiClient from '../lib/apiClient';
 import {
   ASSIGNMENT_DETAILS_SIDEBAR_KEY,
   computeAssignmentMetrics,
@@ -12,8 +12,6 @@ import type {
   AssignmentRepositoryItem,
   AssignmentSubmissionItem,
 } from '../components/assignment-details/types';
-
-const API_BASE = 'http://localhost:8000/api/v1';
 
 interface UseAssignmentDetailsDataParams {
   assignmentId?: string;
@@ -54,10 +52,10 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
 
     try {
       const [assignmentRes, comparisonsRes, submissionsRes, repositoriesRes] = await Promise.all([
-        axios.get(`${API_BASE}/instructor/assignments/${assignmentId}`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_BASE}/instructor/assignments/${assignmentId}/comparisons`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_BASE}/instructor/assignments/${assignmentId}/submissions`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_BASE}/repositories/`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] as AssignmentRepositoryItem[] })),
+        apiClient.get(`/instructor/assignments/${assignmentId}`, { headers: { Authorization: `Bearer ${token}` } }),
+        apiClient.get(`/instructor/assignments/${assignmentId}/comparisons`, { headers: { Authorization: `Bearer ${token}` } }),
+        apiClient.get(`/instructor/assignments/${assignmentId}/submissions`, { headers: { Authorization: `Bearer ${token}` } }),
+        apiClient.get(`/repositories/`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] as AssignmentRepositoryItem[] })),
       ]);
 
       setAssignment(assignmentRes.data as AssignmentDetailsModel);
@@ -96,7 +94,7 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
       const token = localStorage.getItem('token');
       try {
         const body = repoIds && repoIds.length > 0 ? { repository_ids: repoIds } : {};
-        await axios.post(`${API_BASE}/analysis/${assignmentId}/run`, body, {
+        await apiClient.post(`/analysis/${assignmentId}/run`, body, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -126,7 +124,7 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
 
     setDownloading(true);
     try {
-      const response = await axios.get(`${API_BASE}/instructor/assignments/${assignmentId}/download`, {
+      const response = await apiClient.get(`/instructor/assignments/${assignmentId}/download`, {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob',
       });

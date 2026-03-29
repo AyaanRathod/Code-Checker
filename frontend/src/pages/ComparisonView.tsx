@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, AlertOctagon, Unlock, Info, PanelRightClose, PanelRightOpen, Maximize2, Minimize2 } from 'lucide-react';
-import axios from 'axios';
+import apiClient from '../lib/apiClient';
 import RelatedMatchesSidebar from '../components/comparison/RelatedMatchesSidebar';
 import CodePane from '../components/comparison/CodePane';
 import FloatingMatchNavigator from '../components/comparison/FloatingMatchNavigator';
@@ -260,8 +260,8 @@ const ComparisonView: React.FC = () => {
     if (!token) { navigate('/instructor/login'); return; }
 
     try {
-      const response = await axios.get(
-        `http://localhost:8000/api/v1/instructor/submissions/${submissionId}/download`,
+      const response = await apiClient.get(
+        `/instructor/submissions/${submissionId}/download`,
         { headers: { Authorization: `Bearer ${token}` }, responseType: 'blob' }
       );
 
