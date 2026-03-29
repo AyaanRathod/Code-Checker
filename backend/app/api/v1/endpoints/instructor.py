@@ -2,8 +2,8 @@ from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete, update
-from datetime import datetime, timezone, timedelta
+from sqlalchemy import select, func
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import io
 import zipfile
@@ -15,10 +15,9 @@ from app.models.instructor import Instructor
 from app.models.course import Course
 from app.models.assignment import Assignment
 from app.models.submission import Submission
-from app.models.comparison_result import ComparisonResult
-from app.models.stored_file import StoredFile
 from app.models.boilerplate import Boilerplate
 from app.services.storage_service import storage_service
+from app.services.archival_service import effective_status, finalize_archive
 from app.schemas.assignment import AssignmentCreate, AssignmentResponse
 from sqlalchemy.orm import joinedload
 from app.services.encryption_service import encryption_service
@@ -29,91 +28,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 CANADA_TZ = ZoneInfo("America/Toronto")
-ARCHIVE_GRACE_DAYS = 30
-
-
-def effective_status(assignment: Assignment) -> str:
-    """Return the display status, computed at read-time:
-    - 'Closed' if deadline has passed and stored status is 'Open'
-    - 'Archived' if deadline + 30 days has passed and stored status is 'Open' or 'Closed'
-    - Otherwise the stored status
-    """
-    if assignment.status == "Archived":
-        return "Archived"
-    now = datetime.now(timezone.utc)
-    if assignment.deadline:
-        if assignment.status in ("Open", "Closed") and assignment.deadline + timedelta(days=ARCHIVE_GRACE_DAYS) < now:
-            return "Archived"
-        if assignment.status == "Open" and assignment.deadline < now:
-            return "Closed"
-    return assignment.status
-
-
-async def finalize_archive(db: AsyncSession, assignment: Assignment) -> None:
-    """One-time migration: permanently archive an assignment by stripping PII and clearing analysis.
-    Idempotent — safe to call multiple times."""
-    if assignment.status == "Archived":
-        return  # Already finalized in DB
-
-    logger.info("Finalizing archive for assignment %s", assignment.id)
-
-    # 1. Set assignment status to Archived in DB
-    assignment.status = "Archived"
-
-    # 2. Strip PII from all submissions
-    await db.execute(
-        update(Submission)
-        .where(Submission.assignment_id == assignment.id)
-        .values(student_name_encrypted=None, student_id_encrypted=None)
-    )
-
-    # 3. Delete comparison results (analysis data cleared on archive)
-    sub_ids_query = select(Submission.id).where(Submission.assignment_id == assignment.id)
-    sub_ids = [row[0] for row in (await db.execute(sub_ids_query)).all()]
-    if sub_ids:
-        await db.execute(
-            delete(ComparisonResult).where(
-                (ComparisonResult.source_submission_id.in_(sub_ids)) |
-                (ComparisonResult.target_submission_id.in_(sub_ids))
-            )
-        )
-
-    # 4. Auto-create a Repository from the archived submissions
-    from app.models.repository import Repository
-    from app.models.repository_submission import RepositorySubmission
-
-    # Look up the course for a good repo name
-    course_query = await db.execute(select(Course).where(Course.id == assignment.course_id))
-    course = course_query.scalars().first()
-    repo_name = f"{course.course_code} - {assignment.title}" if course else assignment.title
-
-    repo = Repository(
-        instructor_id=course.instructor_id if course else None,
-        name=repo_name,
-        language=assignment.language,
-        source_assignment_id=assignment.id,
-        submission_count=len(sub_ids)
-    )
-    db.add(repo)
-    await db.flush()
-
-    # Create RepositorySubmission entries for each submission and link their stored files
-    for sid in sub_ids:
-        repo_sub = RepositorySubmission(
-            repository_id=repo.id,
-            label=str(sid)[:8]  # Short UUID as label (PII stripped)
-        )
-        db.add(repo_sub)
-        await db.flush()
-
-        # Link existing stored files to the repository submission
-        await db.execute(
-            update(StoredFile)
-            .where(StoredFile.submission_id == sid)
-            .values(repository_submission_id=repo_sub.id)
-        )
-
-    await db.flush()
 
 @router.get("/assignments", response_model=List[dict])
 async def get_instructor_assignments(

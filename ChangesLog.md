@@ -2,6 +2,21 @@
 
 ## 2026-03-28
 
+- BACKEND: Replaced lazy-only archival behavior with scheduled archival enforcement for overdue assignments:
+  - Added shared archival service in `backend/app/services/archival_service.py` with `effective_status`, `finalize_archive`, and `finalize_overdue_archives` to centralize PII stripping + repository snapshot logic.
+  - Added FastAPI lifespan scheduler loop in `backend/main.py` that runs periodically and archives assignments past the 30-day grace window even when no instructor pages are opened.
+  - Added scheduler settings in `backend/app/core/config.py`:
+    - `ARCHIVE_SCHEDULER_ENABLED` (default `True`)
+    - `ARCHIVE_SWEEP_INTERVAL_SECONDS` (default `60`)
+    - `ARCHIVE_SWEEP_BATCH_SIZE` (default `200`)
+  - Refactored `backend/app/api/v1/endpoints/instructor.py` to import and reuse shared archival logic, preserving manual archive endpoint behavior while removing duplicate inline implementation.
+  - Precision and scale hardening:
+    - Exact threshold semantics use inclusive cutoffs (`<=`) for deadline and archive boundary checks.
+    - Scheduler sweep now queries only due assignments (`deadline <= now - 30 days`) instead of scanning all open/closed assignments.
+    - Added DB-level batching + ordered processing to cap per-run work and reduce burst costs.
+    - Added Postgres transaction advisory lock to prevent duplicate scheduler work across multiple app instances.
+    - Added index migration `idx_assignments_status_deadline` to accelerate overdue-archive lookups.
+
 - FRONTEND: Dashboard filter/UI simplification for deferred risk feature:
   - Removed `High Risk` from the Dashboard status filter dropdown in `frontend/src/components/dashboard/DashboardHeaderStats.tsx`.
   - Removed High-Risk filter branch from Dashboard filtering logic in `frontend/src/pages/Dashboard.tsx`.

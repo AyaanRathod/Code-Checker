@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     MINIO_BUCKET_NAME: str = "submissions"
     MINIO_SECURE: bool = False
 
+    # Archival scheduler
+    ARCHIVE_SCHEDULER_ENABLED: bool = True
+    ARCHIVE_SWEEP_INTERVAL_SECONDS: int = 60
+    ARCHIVE_SWEEP_BATCH_SIZE: int = 200
+
     class Config:
         env_file = ".env"
 
