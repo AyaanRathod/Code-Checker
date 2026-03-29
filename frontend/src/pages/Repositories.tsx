@@ -99,7 +99,7 @@ const Repositories: React.FC = () => {
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               className="glass-card"
-              style={{ width: '450px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative' }}
+              style={{ width: 'min(450px, calc(100vw - 1rem))', maxHeight: 'calc(100vh - 1.5rem)', overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative' }}
             >
               <button onClick={() => setIsUploadOpen(false)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}>
                 <X size={20} />
@@ -189,7 +189,7 @@ const Repositories: React.FC = () => {
       </AnimatePresence>
 
       {/* Nav bar */}
-      <nav style={{ padding: '0.75rem 2.5rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-surface)' }}>
+      <nav style={{ padding: '0.65rem 1rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem 0.8rem', background: 'var(--bg-surface)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <button onClick={() => navigate('/instructor/dashboard')} className="btn btn-outline" style={{ border: 'none', padding: 0, color: 'var(--text-secondary)' }}>
             <ArrowLeft size={16} /> Back to Dashboard
@@ -200,8 +200,8 @@ const Repositories: React.FC = () => {
         </button>
       </nav>
 
-      <main style={{ padding: '3rem 2.5rem', maxWidth: '1200px', margin: '0 auto', width: '100%', flex: 1 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2.5rem' }}>
+      <main style={{ padding: '1rem 0.75rem 2rem', maxWidth: '1200px', margin: '0 auto', width: '100%', flex: 1 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '0.8rem', marginBottom: '1.2rem' }}>
           <div>
             <h1 style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>Submission Repositories</h1>
             <p style={{ color: 'var(--text-secondary)' }}>Manage past submission archives for cross-semester analysis.</p>
@@ -222,7 +222,7 @@ const Repositories: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: '1rem' }}>
             {repos.map((repo, i) => (
               <motion.div
                 key={repo.id}

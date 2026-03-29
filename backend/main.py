@@ -2,12 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
+import logging
 
 from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.api.v1.router import api_router
-from app.core.database import engine, Base
+from app.core.database import engine, Base, AsyncSessionLocal
+from app.services.archival_service import finalize_overdue_archives
 # Import models to ensure they are registered with Base
 import app.models.instructor
 import app.models.course
@@ -21,10 +23,49 @@ import app.models.repository_submission
 
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
+ARCHIVE_SCHEDULER_LOCK_KEY = 90243011
+
+
+async def run_archive_scheduler(stop_event: asyncio.Event) -> None:
+    """Periodically archive assignments that are older than the 30-day grace window."""
+    while not stop_event.is_set():
+        try:
+            async with AsyncSessionLocal() as session:
+                lock_row = await session.execute(
+                    text("SELECT pg_try_advisory_xact_lock(:lock_key)"),
+                    {"lock_key": ARCHIVE_SCHEDULER_LOCK_KEY},
+                )
+                lock_acquired = bool(lock_row.scalar())
+
+                if not lock_acquired:
+                    await session.rollback()
+                    logger.debug("Archive scheduler skipped; lock held by another worker")
+                    continue
+
+                archived_count = await finalize_overdue_archives(
+                    session,
+                    batch_size=settings.ARCHIVE_SWEEP_BATCH_SIZE,
+                )
+                if archived_count > 0:
+                    await session.commit()
+                    logger.info("Archive scheduler finalized %s overdue assignment(s)", archived_count)
+                else:
+                    await session.rollback()
+        except Exception:
+            logger.exception("Archive scheduler iteration failed")
+
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=settings.ARCHIVE_SWEEP_INTERVAL_SECONDS)
+        except asyncio.TimeoutError:
+            continue
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
+    archive_stop_event = asyncio.Event()
+    archive_task = None
+
     # Retry DB initialization so startup does not race with container readiness.
     for attempt in range(5):
         try:
@@ -81,12 +122,28 @@ async def lifespan(app: FastAPI):
                     EXCEPTION WHEN duplicate_column THEN NULL;
                     END $$
                 """))
+
+                await conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_assignments_status_deadline
+                    ON assignments (status, deadline)
+                """))
             break
         except Exception:
             if attempt == 4:
                 raise
             await asyncio.sleep(2)
+
+    if settings.ARCHIVE_SCHEDULER_ENABLED:
+        archive_task = asyncio.create_task(run_archive_scheduler(archive_stop_event))
+
     yield
+
+    archive_stop_event.set()
+    if archive_task:
+        try:
+            await asyncio.wait_for(archive_task, timeout=5)
+        except asyncio.TimeoutError:
+            archive_task.cancel()
     # Cleanup here if needed
 
 app = FastAPI(

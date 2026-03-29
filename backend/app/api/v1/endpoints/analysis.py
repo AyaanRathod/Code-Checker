@@ -133,7 +133,7 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
                     if not s_fp or not t_fp:
                         continue
 
-                    score, ranges_a, ranges_b = analysis_service.calculate_similarity_score(s_fp, t_fp)
+                    score, ranges_a, ranges_b, matched_pairs = analysis_service.calculate_similarity_score(s_fp, t_fp)
 
                     # Create DB record if score > 0 (or some threshold) to save space
                     if score > 0:
@@ -158,7 +158,8 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
 
                         metadata = {
                             "source_files": source_files_meta,
-                            "target_files": target_files_meta
+                            "target_files": target_files_meta,
+                            "matched_pairs": matched_pairs
                         }
                         data = ComparisonResultCreate(
                             source_submission_id=source.id,
@@ -228,7 +229,7 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
                             if not t_fp:
                                 continue
 
-                            score, ranges_a, ranges_b = analysis_service.calculate_similarity_score(s_fp, t_fp)
+                            score, ranges_a, ranges_b, matched_pairs = analysis_service.calculate_similarity_score(s_fp, t_fp)
 
                             if score > 0:
                                 s_file_ranges = defaultdict(list)
@@ -252,6 +253,7 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
                                 metadata = {
                                     "source_files": source_files_meta,
                                     "target_files": target_files_meta,
+                                    "matched_pairs": matched_pairs,
                                     "repo_name": repo_obj.name,
                                     "repo_label": rs.label
                                 }
