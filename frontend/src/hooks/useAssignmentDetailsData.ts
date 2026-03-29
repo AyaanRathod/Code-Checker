@@ -102,8 +102,8 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
 
         const message =
           repoIds && repoIds.length > 0
-            ? `Analysis queued: internal + cross-repo comparison against ${repoIds.length} repository(ies). Check back in a moment.`
-            : 'Analysis has been queued to run in the background! Check back in a moment.';
+            ? `Cross-repo analysis queued against ${repoIds.length} repository(ies). Results will appear automatically.`
+            : 'Analysis queued — results will appear automatically when ready.';
 
         showToast(message, 'success');
         setAssignment((prev) => (prev ? { ...prev, status: 'Analyzing...' } : prev));
@@ -114,7 +114,7 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
         setTriggering(false);
       }
     },
-    [assignmentId]
+    [assignmentId, showToast]
   );
 
   const downloadSubmissions = useCallback(async () => {
@@ -158,26 +158,35 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
   }, [assignmentId, navigate]);
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wasAnalyzingRef = useRef(false);
 
   useEffect(() => {
-    if (assignment?.status === 'Analyzing...') {
+    const isAnalyzing = assignment?.status === 'Analyzing...';
+
+    if (isAnalyzing) {
+      wasAnalyzingRef.current = true;
       if (pollingRef.current) return;
       pollingRef.current = setInterval(() => {
         fetchDetails();
       }, 5000);
     } else {
+      if (wasAnalyzingRef.current) {
+        wasAnalyzingRef.current = false;
+        showToast('Analysis complete — results are ready.', 'success');
+      }
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
       }
     }
+
     return () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
         pollingRef.current = null;
       }
     };
-  }, [assignment?.status, fetchDetails]);
+  }, [assignment?.status, fetchDetails, showToast]);
 
   const metrics = useMemo(() => computeAssignmentMetrics(comparisons), [comparisons]);
 
