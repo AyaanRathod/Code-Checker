@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import { useToast } from '../components/ui/Toast';
 import {
@@ -156,6 +156,28 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
       setDownloading(false);
     }
   }, [assignmentId, navigate]);
+
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (assignment?.status === 'Analyzing...') {
+      if (pollingRef.current) return;
+      pollingRef.current = setInterval(() => {
+        fetchDetails();
+      }, 5000);
+    } else {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    }
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [assignment?.status, fetchDetails]);
 
   const metrics = useMemo(() => computeAssignmentMetrics(comparisons), [comparisons]);
 
