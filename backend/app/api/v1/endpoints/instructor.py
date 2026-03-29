@@ -16,6 +16,8 @@ from app.models.course import Course
 from app.models.assignment import Assignment
 from app.models.submission import Submission
 from app.models.boilerplate import Boilerplate
+from app.models.comparison_result import ComparisonResult
+from app.models.stored_file import StoredFile
 from app.services.storage_service import storage_service
 from app.services.archival_service import effective_status, finalize_archive
 from app.schemas.assignment import AssignmentCreate, AssignmentResponse

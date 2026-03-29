@@ -16,6 +16,7 @@
     - Added DB-level batching + ordered processing to cap per-run work and reduce burst costs.
     - Added Postgres transaction advisory lock to prevent duplicate scheduler work across multiple app instances.
     - Added index migration `idx_assignments_status_deadline` to accelerate overdue-archive lookups.
+  - Added easy E2E verification script `scripts/test-archive-scheduler.ps1` to validate scheduled archival, PII stripping, comparison cleanup, and repository snapshot creation via API + DB assertions.
 
 - FRONTEND: Dashboard filter/UI simplification for deferred risk feature:
   - Removed `High Risk` from the Dashboard status filter dropdown in `frontend/src/components/dashboard/DashboardHeaderStats.tsx`.
