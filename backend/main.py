@@ -10,6 +10,9 @@ from app.core.config import get_settings
 from app.api.v1.router import api_router
 from app.core.database import engine, Base, AsyncSessionLocal
 from app.services.archival_service import finalize_overdue_archives
+from app.core.security import get_password_hash
+from app.models.instructor import Instructor
+from sqlalchemy import select
 # Import models to ensure they are registered with Base
 import app.models.instructor
 import app.models.course
@@ -25,6 +28,20 @@ import app.models.repository_submission
 settings = get_settings()
 logger = logging.getLogger(__name__)
 ARCHIVE_SCHEDULER_LOCK_KEY = 90243011
+
+
+async def _seed_default_instructor() -> None:
+    """Create the default faculty account if it doesn't already exist."""
+    async with AsyncSessionLocal() as session:
+        existing = await session.scalar(select(Instructor).where(Instructor.email == "faculty@brocku.ca"))
+        if not existing:
+            session.add(Instructor(
+                username="faculty",
+                email="faculty@brocku.ca",
+                password_hash=get_password_hash("password123"),
+            ))
+            await session.commit()
+            logger.info("Seeded default instructor: faculty@brocku.ca")
 
 
 async def run_archive_scheduler(stop_event: asyncio.Event) -> None:
@@ -127,6 +144,7 @@ async def lifespan(app: FastAPI):
                     CREATE INDEX IF NOT EXISTS idx_assignments_status_deadline
                     ON assignments (status, deadline)
                 """))
+            await _seed_default_instructor()
             break
         except Exception:
             if attempt == 4:

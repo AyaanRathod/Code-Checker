@@ -43,8 +43,8 @@ Server IP: 162.243.166.196 | Branch: ProductionReadyV0
 - [x] Verify Docker: `docker --version` → v29.3.1
 - [x] Clone repo (ProductionReadyV0 branch)
 - [x] Create `.env` file with production secrets
-- [ ] Run production compose: `docker compose -f docker-compose.prod.yml up -d --build`
-- [ ] Verify all containers are running
+- [x] Run production compose: `docker compose -f docker-compose.prod.yml up -d --build`
+- [x] Verify all containers are running (frontend, backend, db, minio — all Up)
 - [ ] Set up domain + SSL (Cloudflare)
 - [ ] Smoke test the live site
 
