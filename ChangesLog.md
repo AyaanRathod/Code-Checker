@@ -1,5 +1,39 @@
 # Changes Log
 
+## 2026-03-29
+
+- DEPLOYMENT: Production-readiness changes for hosting on DigitalOcean VPS:
+  - FRONTEND — Centralized all API calls into a single Axios instance:
+    - Created `frontend/src/lib/apiClient.ts` with `baseURL` driven by `VITE_API_BASE_URL` env var, falling back to `http://localhost:8000/api/v1` for local development.
+    - Replaced 8 hardcoded `http://localhost:8000/api/v1` URL constants across 7 files with `apiClient` calls:
+      - `frontend/src/api/dashboardApi.ts`
+      - `frontend/src/hooks/useAssignmentDetailsData.ts`
+      - `frontend/src/hooks/useStudentPortalSubmission.ts`
+      - `frontend/src/pages/InstructorLogin.tsx`
+      - `frontend/src/pages/Repositories.tsx`
+      - `frontend/src/pages/ComparisonView.tsx`
+      - `frontend/src/components/comparison/useComparisonData.ts`
+  - FRONTEND — Updated `frontend/nginx.conf` to proxy `/api/` requests to the backend container, enabling a single public port (80) for both the React app and the API in production.
+  - FRONTEND — Updated `frontend/Dockerfile` to accept `VITE_API_BASE_URL` as a Docker build argument (`ARG`/`ENV`), baking the correct API base URL into the static build at image build time.
+  - BACKEND — Added `ALLOWED_ORIGINS` setting to `backend/app/core/config.py` (defaults to `"*"` for local dev, comma-separated origins for production).
+  - BACKEND — Updated CORS middleware in `backend/main.py` to read allowed origins from `settings.ALLOWED_ORIGINS` instead of hardcoded `["*"]`.
+  - INFRA — Created `docker-compose.prod.yml`:
+    - Frontend built with `VITE_API_BASE_URL=/api/v1` (relative path, handled by nginx proxy).
+    - Backend runs without `--reload` (production mode).
+    - Database and MinIO ports not exposed externally (internal Docker network only).
+    - All secrets read from `.env` file via environment variable substitution.
+    - All services configured with `restart: unless-stopped`.
+  - INFRA — Created `.env.example` documenting all required production environment variables: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `SECRET_KEY`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `ALLOWED_ORIGINS`.
+
+- CODE CLEANUP: Refactored `backend/app/api/v1/endpoints/instructor.py` from 721 to 551 lines (24% reduction) with no behavior change:
+  - Extracted `_mask_id(encrypted)` helper — replaces the decrypt + mask display pattern repeated across submissions list, comparisons list, and comparison detail endpoints.
+  - Extracted `_decrypt_id(submission)` helper — replaces the try/except decrypt + UUID fallback pattern used in both download endpoints.
+  - Extracted `_safe_name(s)` helper — replaces inline character sanitization used in 3 places across download endpoints.
+  - Extracted `_build_range_lookup(items)` helper — replaces the 10-line range dict building block duplicated twice inside `get_comparison_detail`.
+  - Extracted `_files_to_output(files, by_index, by_name)` helper — replaces the 10-line file download + output list loop duplicated twice inside `get_comparison_detail`.
+  - Moved `LANGUAGE_EXTENSIONS` dict to module level (was buried mid-file before download endpoints).
+  - Removed redundant intermediate variables and verbose inline comments throughout all endpoints.
+
 ## 2026-03-28
 
 - BACKEND: Replaced lazy-only archival behavior with scheduled archival enforcement for overdue assignments:

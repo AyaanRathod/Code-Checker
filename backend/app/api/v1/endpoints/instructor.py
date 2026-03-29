@@ -1,5 +1,5 @@
 from typing import Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -8,6 +8,8 @@ from zoneinfo import ZoneInfo
 import io
 import zipfile
 import logging
+import uuid
+import secrets
 
 from app.core.database import get_db
 from app.api.dependencies import get_current_user
@@ -23,51 +25,90 @@ from app.services.archival_service import effective_status, finalize_archive
 from app.schemas.assignment import AssignmentCreate, AssignmentResponse
 from sqlalchemy.orm import joinedload
 from app.services.encryption_service import encryption_service
-import uuid
-import secrets
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter()
 CANADA_TZ = ZoneInfo("America/Toronto")
+
+LANGUAGE_EXTENSIONS = {"JAVA": ".java", "C": ".c", "CPP": ".cpp"}
+
+
+# ── private helpers ───────────────────────────────────────────────────────────
+
+def _mask_id(encrypted: Optional[str]) -> str:
+    """Decrypt and mask a student ID for display (e.g. ab****cd)."""
+    if not encrypted:
+        return "REDACTED"
+    raw = encryption_service.decrypt(encrypted) or "Unknown"
+    return (raw[:2] + "****" + raw[-2:]) if len(raw) > 4 else "****"
+
+
+def _decrypt_id(submission) -> str:
+    """Return raw student ID for folder naming, falling back to UUID prefix."""
+    if submission.student_id_encrypted:
+        try:
+            return encryption_service.decrypt(submission.student_id_encrypted)
+        except Exception:
+            return str(submission.id)[:8]
+    return str(submission.id)[:8]
+
+
+def _safe_name(s: str) -> str:
+    return "".join(c if c.isalnum() or c in "-_" else "_" for c in s)
+
+
+def _build_range_lookup(items: list) -> tuple[dict, dict]:
+    by_index, by_name = {}, {}
+    for item in items:
+        ranges = item.get("ranges", [])
+        if "file_index" in item:
+            try:
+                by_index[int(item["file_index"])] = ranges
+            except (TypeError, ValueError):
+                pass
+        if fname := item.get("filename"):
+            by_name[fname] = ranges
+    return by_index, by_name
+
+
+def _files_to_output(files, by_index: dict, by_name: dict) -> list:
+    out = []
+    for i, f in enumerate(files):
+        fname = f.storage_path.rsplit("/", 1)[-1] if "/" in f.storage_path else f.storage_path
+        try:
+            code = storage_service.download_file(f.storage_path).decode("utf-8")
+        except Exception as e:
+            code = f"Error downloading file: {str(e)}"
+        out.append({"file_index": i, "filename": fname, "code": code, "ranges": by_index.get(i, by_name.get(fname, []))})
+    return out
+
+
+# ── endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/assignments", response_model=List[dict])
 async def get_instructor_assignments(
     db: AsyncSession = Depends(get_db),
     current_user: Instructor = Depends(get_current_user)
 ) -> Any:
-    """Retrieve all assignments belonging to the current instructor with submission counts."""
-    # We join assignments -> courses -> instructors
-    query = (
+    rows = (await db.execute(
         select(Assignment, Course)
         .join(Course, Assignment.course_id == Course.id)
         .where(Course.instructor_id == current_user.id)
         .order_by(Assignment.created_at.desc())
-    )
-    result = await db.execute(query)
-    rows = result.all()
-    
+    )).all()
+
     response_data = []
     needs_commit = False
-
     for assignment, course in rows:
-        # Trigger lazy archive finalization if effective status diverges from DB
         eff = effective_status(assignment)
         if eff == "Archived" and assignment.status != "Archived":
             await finalize_archive(db, assignment)
             needs_commit = True
 
-        # Count submissions
-        sub_query = select(func.count(Submission.id)).where(Submission.assignment_id == assignment.id)
-        sub_count = await db.scalar(sub_query)
-
-        # Count flagged
-        flag_query = select(func.count(Submission.id)).where(
-            Submission.assignment_id == assignment.id,
-            Submission.is_flagged == True
-        )
-        flag_count = await db.scalar(flag_query)
-
+        sub_count = await db.scalar(select(func.count(Submission.id)).where(Submission.assignment_id == assignment.id))
+        flag_count = await db.scalar(select(func.count(Submission.id)).where(
+            Submission.assignment_id == assignment.id, Submission.is_flagged == True
+        ))
         response_data.append({
             "id": str(assignment.id),
             "title": assignment.title,
@@ -79,11 +120,11 @@ async def get_instructor_assignments(
             "language": assignment.language,
             "deadline": assignment.deadline
         })
-        
+
     if needs_commit:
         await db.commit()
-
     return response_data
+
 
 @router.post("/assignments", response_model=dict)
 async def create_assignment(
@@ -95,63 +136,47 @@ async def create_assignment(
     db: AsyncSession = Depends(get_db),
     current_user: Instructor = Depends(get_current_user)
 ) -> Any:
-    """Create a new assignment for a course. Autogenerates Course if missing.
-    Optionally accepts a boilerplate file whose code will be excluded from similarity analysis."""
-
     if not course_code or not title or not deadline:
         raise HTTPException(status_code=400, detail="course_code, title, and deadline are required")
 
-    # Find or create course for this instructor
-    course_query = select(Course).where(Course.course_code == course_code, Course.instructor_id == current_user.id)
-    course_result = await db.execute(course_query)
-    course = course_result.scalars().first()
-
+    course = (await db.execute(
+        select(Course).where(Course.course_code == course_code, Course.instructor_id == current_user.id)
+    )).scalars().first()
     if not course:
         course = Course(course_code=course_code, term="Current", instructor_id=current_user.id)
         db.add(course)
         await db.flush()
 
-    # Generate unique access key
-    access_key = f"{course_code.replace(' ', '').lower()}-{secrets.token_hex(4)}"
-
     try:
         parsed_deadline = datetime.fromisoformat(deadline.replace("Z", "+00:00"))
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid deadline format")
-
     if parsed_deadline.tzinfo is None:
-        # Treat datetime-local input as Canada time.
         parsed_deadline = parsed_deadline.replace(tzinfo=CANADA_TZ)
-
-    deadline_utc = parsed_deadline.astimezone(timezone.utc)
 
     new_assignment = Assignment(
         course_id=course.id,
         title=title,
-        access_key=access_key,
+        access_key=f"{course_code.replace(' ', '').lower()}-{secrets.token_hex(4)}",
         language=language.upper(),
-        deadline=deadline_utc
+        deadline=parsed_deadline.astimezone(timezone.utc)
     )
     db.add(new_assignment)
     await db.flush()
 
-    # Handle optional boilerplate file upload
     if boilerplate_file and boilerplate_file.filename:
         file_bytes = await boilerplate_file.read()
         if file_bytes:
             object_name = f"boilerplate/{new_assignment.id}/{boilerplate_file.filename}"
             storage_service.upload_file(object_name, file_bytes, content_type="text/plain")
-            content_str = file_bytes.decode("utf-8", errors="replace")
-            bp = Boilerplate(
+            db.add(Boilerplate(
                 assignment_id=new_assignment.id,
                 storage_path=object_name,
-                content=content_str
-            )
-            db.add(bp)
+                content=file_bytes.decode("utf-8", errors="replace")
+            ))
 
     await db.commit()
     await db.refresh(new_assignment)
-
     return {
         "id": str(new_assignment.id),
         "title": new_assignment.title,
@@ -161,6 +186,7 @@ async def create_assignment(
         "flags": 0,
         "access_key": new_assignment.access_key
     }
+
 
 @router.patch("/assignments/{assignment_id}", response_model=dict)
 async def update_assignment(
@@ -173,27 +199,19 @@ async def update_assignment(
     db: AsyncSession = Depends(get_db),
     current_user: Instructor = Depends(get_current_user)
 ) -> Any:
-    """Update an existing assignment. Only provided fields are changed. Submissions are not affected."""
-    # Verify ownership
-    a_query = (
+    row = (await db.execute(
         select(Assignment, Course)
         .join(Course, Assignment.course_id == Course.id)
         .where(Assignment.id == assignment_id, Course.instructor_id == current_user.id)
-    )
-    a_result = await db.execute(a_query)
-    row = a_result.first()
+    )).first()
     if not row:
         raise HTTPException(status_code=404, detail="Assignment not found")
-
     assignment, course = row
 
-    # Update fields that were provided
     if title is not None:
         assignment.title = title
-
     if language is not None:
         assignment.language = language.upper()
-
     if deadline is not None:
         try:
             parsed_deadline = datetime.fromisoformat(deadline.replace("Z", "+00:00"))
@@ -202,12 +220,10 @@ async def update_assignment(
         if parsed_deadline.tzinfo is None:
             parsed_deadline = parsed_deadline.replace(tzinfo=CANADA_TZ)
         assignment.deadline = parsed_deadline.astimezone(timezone.utc)
-
     if course_code is not None and course_code != course.course_code:
-        # Find or create the new course
-        new_course_query = select(Course).where(Course.course_code == course_code, Course.instructor_id == current_user.id)
-        new_course_result = await db.execute(new_course_query)
-        new_course = new_course_result.scalars().first()
+        new_course = (await db.execute(
+            select(Course).where(Course.course_code == course_code, Course.instructor_id == current_user.id)
+        )).scalars().first()
         if not new_course:
             new_course = Course(course_code=course_code, term="Current", instructor_id=current_user.id)
             db.add(new_course)
@@ -215,33 +231,22 @@ async def update_assignment(
         assignment.course_id = new_course.id
         course = new_course
 
-    # Handle optional boilerplate file replacement
     if boilerplate_file and boilerplate_file.filename:
         file_bytes = await boilerplate_file.read()
         if file_bytes:
-            # Delete existing boilerplate records for this assignment
-            existing_bp_query = select(Boilerplate).where(Boilerplate.assignment_id == assignment_id)
-            existing_bps = (await db.execute(existing_bp_query)).scalars().all()
+            existing_bps = (await db.execute(select(Boilerplate).where(Boilerplate.assignment_id == assignment_id))).scalars().all()
             for old_bp in existing_bps:
                 try:
                     storage_service.delete_file(old_bp.storage_path)
                 except Exception:
                     pass
                 await db.delete(old_bp)
-
             object_name = f"boilerplate/{assignment.id}/{boilerplate_file.filename}"
             storage_service.upload_file(object_name, file_bytes, content_type="text/plain")
-            content_str = file_bytes.decode("utf-8", errors="replace")
-            bp = Boilerplate(
-                assignment_id=assignment.id,
-                storage_path=object_name,
-                content=content_str
-            )
-            db.add(bp)
+            db.add(Boilerplate(assignment_id=assignment.id, storage_path=object_name, content=file_bytes.decode("utf-8", errors="replace")))
 
     await db.commit()
     await db.refresh(assignment)
-
     return {
         "id": str(assignment.id),
         "title": assignment.title,
@@ -261,18 +266,17 @@ async def get_assignment(
     db: AsyncSession = Depends(get_db),
     current_user: Instructor = Depends(get_current_user)
 ):
-    query = select(Assignment, Course).join(Course, Assignment.course_id == Course.id).where(Assignment.id == assignment_id, Course.instructor_id == current_user.id)
-    result = await db.execute(query)
-    row = result.first()
+    row = (await db.execute(
+        select(Assignment, Course).join(Course, Assignment.course_id == Course.id)
+        .where(Assignment.id == assignment_id, Course.instructor_id == current_user.id)
+    )).first()
     if not row:
         raise HTTPException(status_code=404, detail="Assignment not found")
-        
     assignment, course = row
     eff = effective_status(assignment)
     if eff == "Archived" and assignment.status != "Archived":
         await finalize_archive(db, assignment)
         await db.commit()
-
     return {
         "id": str(assignment.id),
         "title": assignment.title,
@@ -290,23 +294,18 @@ async def archive_assignment(
     db: AsyncSession = Depends(get_db),
     current_user: Instructor = Depends(get_current_user)
 ):
-    """Manually archive an assignment immediately. Strips PII and clears analysis results. Irreversible."""
-    a_query = (
+    row = (await db.execute(
         select(Assignment, Course)
         .join(Course, Assignment.course_id == Course.id)
         .where(Assignment.id == assignment_id, Course.instructor_id == current_user.id)
-    )
-    row = (await db.execute(a_query)).first()
+    )).first()
     if not row:
         raise HTTPException(status_code=404, detail="Assignment not found")
-
-    assignment, course = row
+    assignment, _ = row
     if assignment.status == "Archived":
         return {"message": "Assignment is already archived", "status": "Archived"}
-
     await finalize_archive(db, assignment)
     await db.commit()
-
     return {"message": "Assignment archived successfully. Student identities have been permanently removed.", "status": "Archived"}
 
 
@@ -316,52 +315,31 @@ async def get_assignment_submissions(
     db: AsyncSession = Depends(get_db),
     current_user: Instructor = Depends(get_current_user)
 ):
-    """Return a privacy-safe overview of all submissions for an assignment."""
-    # Verify ownership
-    a_query = select(Assignment).join(Course).where(Assignment.id == assignment_id, Course.instructor_id == current_user.id)
-    a_result = await db.execute(a_query)
-    if not a_result.scalars().first():
+    if not (await db.execute(
+        select(Assignment).join(Course).where(Assignment.id == assignment_id, Course.instructor_id == current_user.id)
+    )).scalars().first():
         raise HTTPException(status_code=404, detail="Assignment not found")
 
-    # Fetch submissions with their stored files eagerly loaded
-    sub_query = (
-        select(Submission)
-        .options(joinedload(Submission.stored_files))
+    submissions = (await db.execute(
+        select(Submission).options(joinedload(Submission.stored_files))
         .where(Submission.assignment_id == assignment_id)
         .order_by(Submission.timestamp.desc())
-    )
-    sub_result = await db.execute(sub_query)
-    submissions = sub_result.scalars().unique().all()
+    )).scalars().unique().all()
 
-    response = []
-    for sub in submissions:
-        # Mask student ID: first 2 + **** + last 2, or REDACTED if PII stripped (archived)
-        if sub.student_id_encrypted:
-            raw_id = encryption_service.decrypt(sub.student_id_encrypted) or "Unknown"
-            if len(raw_id) > 4:
-                masked_id = raw_id[:2] + "****" + raw_id[-2:]
-            else:
-                masked_id = "****"
-        else:
-            masked_id = "REDACTED"
-
-        file_count = len(sub.stored_files) if sub.stored_files else 0
-        total_lines = sum(f.line_count for f in sub.stored_files) if sub.stored_files else 0
-        total_bytes = sum(f.byte_size for f in sub.stored_files) if sub.stored_files else 0
-
-        response.append({
+    return [
+        {
             "id": str(sub.id),
-            "masked_student_id": masked_id,
+            "masked_student_id": _mask_id(sub.student_id_encrypted),
             "timestamp": sub.timestamp.isoformat() if sub.timestamp else None,
             "attempt_number": sub.attempt_number or 1,
             "status": sub.status or "Active",
             "is_flagged": sub.is_flagged or False,
-            "file_count": file_count,
-            "total_lines": total_lines,
-            "total_bytes": total_bytes,
-        })
-
-    return response
+            "file_count": len(sub.stored_files) if sub.stored_files else 0,
+            "total_lines": sum(f.line_count for f in sub.stored_files) if sub.stored_files else 0,
+            "total_bytes": sum(f.byte_size for f in sub.stored_files) if sub.stored_files else 0,
+        }
+        for sub in submissions
+    ]
 
 
 @router.get("/assignments/{assignment_id}/comparisons")
@@ -370,15 +348,13 @@ async def get_comparisons(
     db: AsyncSession = Depends(get_db),
     current_user: Instructor = Depends(get_current_user)
 ):
-    # Verify ownership
-    a_query = select(Assignment).join(Course).where(Assignment.id == assignment_id, Course.instructor_id == current_user.id)
-    a_result = await db.execute(a_query)
-    if not a_result.scalars().first():
+    if not (await db.execute(
+        select(Assignment).join(Course).where(Assignment.id == assignment_id, Course.instructor_id == current_user.id)
+    )).scalars().first():
         raise HTTPException(status_code=404, detail="Assignment not found")
-        
-    # Get all comparisons (both internal and cross-repo)
+
     from app.models.repository_submission import RepositorySubmission
-    query = (
+    comparisons = (await db.execute(
         select(ComparisonResult)
         .options(
             joinedload(ComparisonResult.source_submission),
@@ -388,35 +364,21 @@ async def get_comparisons(
         .join(Submission, ComparisonResult.source_submission_id == Submission.id)
         .where(Submission.assignment_id == assignment_id)
         .order_by(ComparisonResult.similarity_score.desc())
-    )
-    result = await db.execute(query)
-    comparisons = result.scalars().unique().all()
+    )).scalars().unique().all()
 
     response_data = []
     for c in comparisons:
-        # Source is always a current submission
         src_id = encryption_service.decrypt(c.source_submission.student_id_encrypted) if c.source_submission.student_id_encrypted else "Unknown"
-        if len(src_id) > 4:
-            src_display = src_id[:2] + "****" + src_id[-2:]
-        else:
-            src_display = "Student_A"
-
+        src_display = (src_id[:2] + "****" + src_id[-2:]) if len(src_id) > 4 else "Student_A"
         comp_type = c.comparison_type or "internal"
 
         if comp_type == "cross_repo" and c.target_repo_submission:
-            # Cross-repo: target is a repository submission
             meta = c.match_metadata or {}
-            repo_name = meta.get("repo_name", "Repository")
-            repo_label = meta.get("repo_label", c.target_repo_submission.label)
-            tgt_display = f"[{repo_name}] {repo_label}"
-            tgt_id_raw = repo_label
+            tgt_display = f"[{meta.get('repo_name', 'Repository')}] {meta.get('repo_label', c.target_repo_submission.label)}"
+            tgt_id_raw = meta.get("repo_label", c.target_repo_submission.label)
         else:
-            # Internal: target is a current submission
             tgt_id = encryption_service.decrypt(c.target_submission.student_id_encrypted) if c.target_submission and c.target_submission.student_id_encrypted else "Unknown"
-            if len(tgt_id) > 4:
-                tgt_display = tgt_id[:2] + "****" + tgt_id[-2:]
-            else:
-                tgt_display = "Student_B"
+            tgt_display = (tgt_id[:2] + "****" + tgt_id[-2:]) if len(tgt_id) > 4 else "Student_B"
             tgt_id_raw = tgt_id
 
         response_data.append({
@@ -429,8 +391,8 @@ async def get_comparisons(
             "comparison_type": comp_type,
             "status": "High Risk" if c.similarity_score > 80 else "Review" if c.similarity_score > 60 else "Normal"
         })
-
     return response_data
+
 
 @router.get("/comparisons/{comparison_id}")
 async def get_comparison_detail(
@@ -440,7 +402,7 @@ async def get_comparison_detail(
 ):
     from app.models.repository_submission import RepositorySubmission
 
-    query = (
+    comparison = (await db.execute(
         select(ComparisonResult)
         .options(
             joinedload(ComparisonResult.source_submission),
@@ -448,101 +410,37 @@ async def get_comparison_detail(
             joinedload(ComparisonResult.target_repo_submission)
         )
         .where(ComparisonResult.id == comparison_id)
-    )
-    result = await db.execute(query)
-    comparison = result.scalars().first()
-
+    )).scalars().first()
     if not comparison:
         raise HTTPException(status_code=404, detail="Comparison not found")
 
-    # Security: Ensure this comparison belongs to this instructor via assignment->course
-    a_query = select(Assignment).join(Course).where(
-        Assignment.id == comparison.source_submission.assignment_id,
-        Course.instructor_id == current_user.id
-    )
-    a_result = await db.execute(a_query)
-    if not a_result.scalars().first():
+    if not (await db.execute(
+        select(Assignment).join(Course).where(
+            Assignment.id == comparison.source_submission.assignment_id,
+            Course.instructor_id == current_user.id
+        )
+    )).scalars().first():
         raise HTTPException(status_code=403, detail="Unauthorized")
 
     comp_type = comparison.comparison_type or "internal"
     meta = comparison.match_metadata or {}
 
-    # Source side (always a current submission)
     raw_source = encryption_service.decrypt(comparison.source_submission.student_id_encrypted) if comparison.source_submission.student_id_encrypted else "Unknown Source"
     source_name = encryption_service.decrypt(comparison.source_submission.student_name_encrypted) if comparison.source_submission.student_name_encrypted else ""
 
-    sf_query = select(StoredFile).where(StoredFile.submission_id == comparison.source_submission.id).order_by(StoredFile.storage_path)
-    s_files = (await db.execute(sf_query)).scalars().all()
+    s_files = (await db.execute(select(StoredFile).where(StoredFile.submission_id == comparison.source_submission.id).order_by(StoredFile.storage_path))).scalars().all()
+    source_files_out = _files_to_output(s_files, *_build_range_lookup(meta.get("source_files", [])))
 
-    source_range_lookup_by_index = {}
-    source_range_lookup_by_name = {}
-    for item in meta.get("source_files", []):
-        ranges = item.get("ranges", [])
-        if "file_index" in item:
-            try:
-                source_range_lookup_by_index[int(item["file_index"])] = ranges
-            except (TypeError, ValueError):
-                pass
-        fname = item.get("filename")
-        if fname:
-            source_range_lookup_by_name[fname] = ranges
-
-    source_files_out = []
-    for file_index, f in enumerate(s_files):
-        fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
-        try:
-            code = storage_service.download_file(f.storage_path).decode('utf-8')
-        except Exception as e:
-            code = f"Error downloading file: {str(e)}"
-        ranges = source_range_lookup_by_index.get(file_index)
-        if ranges is None:
-            ranges = source_range_lookup_by_name.get(fname, [])
-        source_files_out.append({"file_index": file_index, "filename": fname, "code": code, "ranges": ranges})
-
-    # Target side — depends on comparison type
-    target_range_lookup_by_index = {}
-    target_range_lookup_by_name = {}
-    for item in meta.get("target_files", []):
-        ranges = item.get("ranges", [])
-        if "file_index" in item:
-            try:
-                target_range_lookup_by_index[int(item["file_index"])] = ranges
-            except (TypeError, ValueError):
-                pass
-        fname = item.get("filename")
-        if fname:
-            target_range_lookup_by_name[fname] = ranges
-
-    target_files_out = []
-
+    tgt_by = _build_range_lookup(meta.get("target_files", []))
     if comp_type == "cross_repo" and comparison.target_repo_submission_id:
-        # Target is a repository submission
         raw_target = f"[{meta.get('repo_name', 'Repository')}] {meta.get('repo_label', '')}"
         target_name = ""
-
-        tf_query = select(StoredFile).where(StoredFile.repository_submission_id == comparison.target_repo_submission_id).order_by(StoredFile.storage_path)
-        t_files = (await db.execute(tf_query)).scalars().all()
+        t_files = (await db.execute(select(StoredFile).where(StoredFile.repository_submission_id == comparison.target_repo_submission_id).order_by(StoredFile.storage_path))).scalars().all()
     else:
-        # Target is a regular submission
         raw_target = encryption_service.decrypt(comparison.target_submission.student_id_encrypted) if comparison.target_submission and comparison.target_submission.student_id_encrypted else "Unknown Target"
         target_name = encryption_service.decrypt(comparison.target_submission.student_name_encrypted) if comparison.target_submission and comparison.target_submission.student_name_encrypted else ""
-
-        tf_query = select(StoredFile).where(StoredFile.submission_id == comparison.target_submission.id).order_by(StoredFile.storage_path)
-        t_files = (await db.execute(tf_query)).scalars().all()
-
-    for file_index, f in enumerate(t_files):
-        fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
-        try:
-            code = storage_service.download_file(f.storage_path).decode('utf-8')
-        except Exception as e:
-            code = f"Error downloading file: {str(e)}"
-        ranges = target_range_lookup_by_index.get(file_index)
-        if ranges is None:
-            ranges = target_range_lookup_by_name.get(fname, [])
-        target_files_out.append({"file_index": file_index, "filename": fname, "code": code, "ranges": ranges})
-
-    s_code = source_files_out[0]["code"] if source_files_out else "No Source File Found"
-    t_code = target_files_out[0]["code"] if target_files_out else "No Target File Found"
+        t_files = (await db.execute(select(StoredFile).where(StoredFile.submission_id == comparison.target_submission.id).order_by(StoredFile.storage_path))).scalars().all()
+    target_files_out = _files_to_output(t_files, *tgt_by)
 
     return {
         "id": str(comparison.id),
@@ -555,19 +453,12 @@ async def get_comparison_detail(
         "target_student_decrypted": raw_target,
         "source_student_name": source_name,
         "target_student_name": target_name,
-        "source_code": s_code,
-        "target_code": t_code,
+        "source_code": source_files_out[0]["code"] if source_files_out else "No Source File Found",
+        "target_code": target_files_out[0]["code"] if target_files_out else "No Target File Found",
         "source_files": source_files_out,
         "target_files": target_files_out,
         "metadata": meta
     }
-
-
-LANGUAGE_EXTENSIONS = {
-    "JAVA": ".java",
-    "C": ".c",
-    "CPP": ".cpp",
-}
 
 
 @router.get("/submissions/{submission_id}/download")
@@ -576,46 +467,22 @@ async def download_single_submission(
     db: AsyncSession = Depends(get_db),
     current_user: Instructor = Depends(get_current_user)
 ):
-    """Download all files for a single submission as a zip."""
-    # Fetch submission with stored files
-    sub_query = (
-        select(Submission)
-        .options(joinedload(Submission.stored_files))
-        .where(Submission.id == submission_id)
-    )
-    sub_result = await db.execute(sub_query)
-    submission = sub_result.scalars().unique().first()
-
+    submission = (await db.execute(
+        select(Submission).options(joinedload(Submission.stored_files)).where(Submission.id == submission_id)
+    )).scalars().unique().first()
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
 
-    # Verify instructor owns this assignment via course
-    a_query = (
-        select(Assignment)
-        .join(Course)
-        .where(Assignment.id == submission.assignment_id, Course.instructor_id == current_user.id)
-    )
-    a_result = await db.execute(a_query)
-    assignment = a_result.scalars().first()
+    assignment = (await db.execute(
+        select(Assignment).join(Course).where(Assignment.id == submission.assignment_id, Course.instructor_id == current_user.id)
+    )).scalars().first()
     if not assignment:
         raise HTTPException(status_code=403, detail="Unauthorized")
-
-    ext = LANGUAGE_EXTENSIONS.get(assignment.language, ".txt")
-
-    # Use student ID for folder naming, or submission UUID if PII was stripped (archived)
-    student_id = "unknown"
-    if submission.student_id_encrypted:
-        try:
-            student_id = encryption_service.decrypt(submission.student_id_encrypted)
-        except Exception:
-            student_id = str(submission.id)[:8]
-    else:
-        student_id = str(submission.id)[:8]
-
-    folder_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in student_id)
-
     if not submission.stored_files:
         raise HTTPException(status_code=404, detail="No files found for this submission")
+
+    ext = LANGUAGE_EXTENSIONS.get(assignment.language, ".txt")
+    folder_name = _safe_name(_decrypt_id(submission))
 
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -628,12 +495,10 @@ async def download_single_submission(
                 logger.warning(f"Failed to download file {sf.storage_path}: {e}")
 
     zip_buffer.seek(0)
-    zip_filename = f"{folder_name}_submission.zip"
-
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{zip_filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{folder_name}_submission.zip"'}
     )
 
 
@@ -643,56 +508,26 @@ async def download_submissions(
     db: AsyncSession = Depends(get_db),
     current_user: Instructor = Depends(get_current_user)
 ):
-    """Download all submissions for an assignment as a zip file.
-    Structure: {student_id}/file_1.ext, {student_id}/file_2.ext, ...
-    """
-    # Verify assignment ownership
-    a_query = (
-        select(Assignment, Course)
-        .join(Course, Assignment.course_id == Course.id)
+    row = (await db.execute(
+        select(Assignment, Course).join(Course, Assignment.course_id == Course.id)
         .where(Assignment.id == assignment_id, Course.instructor_id == current_user.id)
-    )
-    a_result = await db.execute(a_query)
-    row = a_result.first()
+    )).first()
     if not row:
         raise HTTPException(status_code=404, detail="Assignment not found")
-
     assignment, course = row
     ext = LANGUAGE_EXTENSIONS.get(assignment.language, ".txt")
 
-    # Fetch all active submissions with their stored files
-    sub_query = (
-        select(Submission)
-        .options(joinedload(Submission.stored_files))
-        .where(
-            Submission.assignment_id == assignment_id,
-            Submission.status == "Active"
-        )
-    )
-    sub_result = await db.execute(sub_query)
-    submissions = sub_result.scalars().unique().all()
-
+    submissions = (await db.execute(
+        select(Submission).options(joinedload(Submission.stored_files))
+        .where(Submission.assignment_id == assignment_id, Submission.status == "Active")
+    )).scalars().unique().all()
     if not submissions:
         raise HTTPException(status_code=404, detail="No active submissions found for this assignment")
 
-    # Build zip in memory
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for submission in submissions:
-            # Use student ID for folder name, or submission UUID if PII was stripped (archived)
-            student_id = "unknown"
-            if submission.student_id_encrypted:
-                try:
-                    student_id = encryption_service.decrypt(submission.student_id_encrypted)
-                except Exception:
-                    student_id = str(submission.id)[:8]
-            else:
-                student_id = str(submission.id)[:8]
-
-            # Sanitize identifier (remove characters unsafe for paths)
-            safe_student_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in student_id)
-
-            # Create an inner zip file for this student
+            safe_student_id = _safe_name(_decrypt_id(submission))
             inner_zip_buffer = io.BytesIO()
             with zipfile.ZipFile(inner_zip_buffer, "w", zipfile.ZIP_DEFLATED) as inner_zf:
                 files_added = False
@@ -704,17 +539,13 @@ async def download_submissions(
                         files_added = True
                     except Exception as e:
                         logger.warning(f"Failed to download file {sf.storage_path}: {e}")
-            
             if files_added:
                 inner_zip_buffer.seek(0)
                 zf.writestr(f"{safe_student_id}.zip", inner_zip_buffer.read())
 
     zip_buffer.seek(0)
-    safe_title = "".join(c if c.isalnum() or c in "-_ " else "_" for c in assignment.title)
-    zip_filename = f"{course.course_code}_{safe_title}_submissions.zip"
-
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{zip_filename}"'}
+        headers={"Content-Disposition": f'attachment; filename="{course.course_code}_{_safe_name(assignment.title)}_submissions.zip"'}
     )
