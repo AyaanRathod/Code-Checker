@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import apiClient from '../lib/apiClient';
+import { useToast } from '../components/ui/Toast';
 import {
   ASSIGNMENT_DETAILS_SIDEBAR_KEY,
   computeAssignmentMetrics,
@@ -19,6 +20,7 @@ interface UseAssignmentDetailsDataParams {
 }
 
 export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignmentDetailsDataParams) => {
+  const { showToast } = useToast();
   const [assignment, setAssignment] = useState<AssignmentDetailsModel | null>(null);
   const [comparisons, setComparisons] = useState<AssignmentComparisonItem[]>([]);
   const [submissions, setSubmissions] = useState<AssignmentSubmissionItem[]>([]);
@@ -64,7 +66,7 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
       setRepositories(repositoriesRes.data as AssignmentRepositoryItem[]);
     } catch (error) {
       console.error(error);
-      alert('Failed to fetch assignment details.');
+      showToast('Failed to fetch assignment details.', 'error');
     } finally {
       setLoading(false);
     }
@@ -103,11 +105,11 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
             ? `Analysis queued: internal + cross-repo comparison against ${repoIds.length} repository(ies). Check back in a moment.`
             : 'Analysis has been queued to run in the background! Check back in a moment.';
 
-        alert(message);
+        showToast(message, 'success');
         setAssignment((prev) => (prev ? { ...prev, status: 'Analyzing...' } : prev));
       } catch (error) {
         console.error(error);
-        alert('Failed to trigger analysis. Ensure students have submitted files first.');
+        showToast('Failed to trigger analysis. Ensure students have submitted files first.', 'error');
       } finally {
         setTriggering(false);
       }
@@ -149,7 +151,7 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
         typeof error === 'object' && error !== null && 'response' in error
           ? (error as { response?: { status?: number } }).response?.status
           : undefined;
-      alert(status === 404 ? 'No submissions found to download.' : 'Failed to download submissions.');
+      showToast(status === 404 ? 'No submissions found to download.' : 'Failed to download submissions.', status === 404 ? 'info' : 'error');
     } finally {
       setDownloading(false);
     }

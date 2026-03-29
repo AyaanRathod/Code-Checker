@@ -35,18 +35,20 @@ Server IP: 162.243.166.196 | Branch: ProductionReadyV0
 - IPv4: 162.243.166.196
 
 ### Steps Completed
-- [ ] Connected to droplet via SSH: `ssh root@162.243.166.196`
-- [ ] Ran system update: `apt-get update && apt-get upgrade -y`
-- [x] Installing Docker: `curl -fsSL https://get.docker.com | sh`
+- [x] Connected to droplet via SSH: `ssh root@162.243.166.196`
+- [x] Ran system update: `apt-get update && apt-get upgrade -y`
+- [x] Installed Docker: `curl -fsSL https://get.docker.com | sh` → v29.3.1
+- [x] Cloned repo (ProductionReadyV0 branch)
+- [x] Created `.env` file with production secrets
+- [x] Fixed TypeScript error in `apiClient.ts` (missing `/// <reference types="vite/client" />`) — required push + redeploy
+- [x] Fixed broken DATABASE_URL caused by `@` symbol in postgres password — avoid special URL characters (`@` `#` `/` `?`) in passwords
+- [x] Wiped postgres volume and force-recreated all containers: `down -v` + `up -d --force-recreate`
+- [x] All 4 containers stable (frontend, backend, db, minio)
+- [x] Faculty login working: `faculty@brocku.ca` / `password123`
 
 ### Steps Remaining
-- [x] Verify Docker: `docker --version` → v29.3.1
-- [x] Clone repo (ProductionReadyV0 branch)
-- [x] Create `.env` file with production secrets
-- [x] Run production compose: `docker compose -f docker-compose.prod.yml up -d --build`
-- [x] Verify all containers are running (frontend, backend, db, minio — all Up)
+- [x] Smoke test the full site — student submit, faculty login, dashboard, run analysis, comparison view all working
 - [ ] Set up domain + SSL (Cloudflare)
-- [ ] Smoke test the live site
 
 ---
 

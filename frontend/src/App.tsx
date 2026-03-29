@@ -8,6 +8,7 @@ import AssignmentDetails from './pages/AssignmentDetails';
 import ComparisonView from './pages/ComparisonView';
 import Repositories from './pages/Repositories';
 
+import { ToastProvider } from './components/ui/Toast';
 import './index.css';
 
 const GlobalHeader = () => {
@@ -73,9 +74,11 @@ const AppContent = () => {
 
 function App() {
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <ToastProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </ToastProvider>
   );
 }
 

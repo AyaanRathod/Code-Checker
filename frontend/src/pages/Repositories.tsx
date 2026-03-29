@@ -4,9 +4,13 @@ import { ArrowLeft, Upload, Trash2, Database, Calendar, Code, X, ShieldCheck, Lo
 import { motion, AnimatePresence } from 'framer-motion';
 import apiClient from '../lib/apiClient';
 import { useFileDrop } from '../hooks/useFileDrop';
+import ConfirmModal from '../components/ui/ConfirmModal';
+import { useToast } from '../components/ui/Toast';
 
 const Repositories: React.FC = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [repos, setRepos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -68,16 +72,22 @@ const Repositories: React.FC = () => {
     }
   };
 
-  const handleDelete = async (repoId: string, repoName: string) => {
-    if (!window.confirm(`Delete repository "${repoName}"?\n\nThis will permanently remove all stored files.`)) return;
+  const handleDelete = (repoId: string, repoName: string) => {
+    setConfirmDelete({ id: repoId, name: repoName });
+  };
+
+  const doDelete = async () => {
+    if (!confirmDelete) return;
+    const { id } = confirmDelete;
+    setConfirmDelete(null);
     const token = localStorage.getItem('token');
     try {
-      await apiClient.delete(`/repositories/${repoId}`, {
+      await apiClient.delete(`/repositories/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setRepos(repos.filter(r => r.id !== repoId));
+      setRepos(repos.filter(r => r.id !== id));
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to delete repository');
+      showToast(err.response?.data?.detail || 'Failed to delete repository', 'error');
     }
   };
 
@@ -88,6 +98,15 @@ const Repositories: React.FC = () => {
 
   return (
     <div className="main-content" style={{ display: 'flex', flexDirection: 'column' }}>
+      <ConfirmModal
+        open={!!confirmDelete}
+        title={`Delete "${confirmDelete?.name ?? ''}"`}
+        message="This will permanently remove all stored files."
+        confirmLabel="Delete"
+        danger
+        onConfirm={doDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
 
       {/* Upload Modal */}
       <AnimatePresence>

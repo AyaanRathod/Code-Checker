@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import apiClient from '../../lib/apiClient';
+import { useToast } from '../ui/Toast';
 import type { AssignmentComparison, AssignmentSummary, ComparisonData, OtherAssignmentMatch } from './types';
 import { getIdentityTokens } from './comparisonUtils';
 
@@ -17,6 +18,7 @@ interface UseComparisonDataResult {
 }
 
 export const useComparisonData = ({ comparisonId, navigate }: UseComparisonDataParams): UseComparisonDataResult => {
+  const { showToast } = useToast();
   const [data, setData] = useState<ComparisonData | null>(null);
   const [loading, setLoading] = useState(true);
   const [otherAssignmentMatches, setOtherAssignmentMatches] = useState<OtherAssignmentMatch[]>([]);
@@ -38,7 +40,7 @@ export const useComparisonData = ({ comparisonId, navigate }: UseComparisonDataP
         setData(response.data as ComparisonData);
       } catch (error) {
         console.error(error);
-        alert('Failed to load comparison data.');
+        showToast('Failed to load comparison data.', 'error');
       } finally {
         setLoading(false);
       }

@@ -25,10 +25,25 @@ const ActiveAssignmentCard: React.FC<ActiveAssignmentCardProps> = ({
 
   const handleCopyKey = (event: React.MouseEvent) => {
     event.stopPropagation();
-    navigator.clipboard.writeText(assignment.access_key).then(() => {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(assignment.access_key).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      });
+    } else {
+      // Fallback for HTTP (non-secure context)
+      const el = document.createElement('textarea');
+      el.value = assignment.access_key;
+      el.style.position = 'fixed';
+      el.style.opacity = '0';
+      document.body.appendChild(el);
+      el.focus();
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    });
+    }
   };
 
   return (
