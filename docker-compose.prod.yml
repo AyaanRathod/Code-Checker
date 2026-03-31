@@ -6,6 +6,7 @@ services:
       dockerfile: Dockerfile
       args:
         - VITE_API_BASE_URL=/api/v1
+        - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID:-}
     container_name: code_checker_frontend
     ports:
       - "80:80"
@@ -30,6 +31,9 @@ services:
       - MINIO_SECURE=false
       - SECRET_KEY=${SECRET_KEY}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - FRONTEND_URL=${FRONTEND_URL:-https://yourdomain.com}
     depends_on:
       db:
         condition: service_healthy

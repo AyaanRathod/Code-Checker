@@ -22,4 +22,11 @@ class InstructorRepository(BaseRepository[Instructor, InstructorCreate, Instruct
         )
         return result.scalars().first()
 
+    async def get_by_google_id(self, db: AsyncSession, google_id: str) -> Optional[Instructor]:
+        """Get instructor by Google OAuth subject ID."""
+        result = await db.execute(
+            select(Instructor).where(Instructor.google_id == google_id)
+        )
+        return result.scalars().first()
+
 instructor_repository = InstructorRepository(Instructor)
