@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Upload } from 'lucide-react';
 import type { AssignmentFilter, DashboardStats } from '../../types/dashboard';
 
 interface DashboardHeaderStatsProps {
@@ -10,6 +10,7 @@ interface DashboardHeaderStatsProps {
   onAssignmentFilterChange: (value: AssignmentFilter) => void;
   onClearFilters: () => void;
   onOpenCreateModal: () => void;
+  onOpenRepoUploadModal: () => void;
 }
 
 const DashboardHeaderStats: React.FC<DashboardHeaderStatsProps> = ({
@@ -20,6 +21,7 @@ const DashboardHeaderStats: React.FC<DashboardHeaderStatsProps> = ({
   onAssignmentFilterChange,
   onClearFilters,
   onOpenCreateModal,
+  onOpenRepoUploadModal,
 }) => {
   return (
     <div className="glass-card" style={{ padding: '1.15rem 1.15rem 1rem', marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -28,9 +30,19 @@ const DashboardHeaderStats: React.FC<DashboardHeaderStatsProps> = ({
           <h1 style={{ fontSize: '1.45rem', marginBottom: '0.2rem' }}>Instructor Dashboard</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Quickly review active courses, risk hotspots, and repository coverage.</p>
         </div>
-        <button className="btn btn-primary" onClick={onOpenCreateModal}>
-          <Plus size={18} /> New Assignment
-        </button>
+        <div className="dashboard-quick-actions" style={{ display: 'flex', gap: '0.55rem', flexWrap: 'wrap' }}>
+          <button className="btn btn-primary" onClick={onOpenCreateModal}>
+            <Plus size={18} /> New Assignment
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={onOpenRepoUploadModal}
+            style={{ borderColor: 'var(--brand-red)', color: 'var(--brand-red)' }}
+          >
+            <Upload size={16} /> Upload Repository
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.6rem' }}>

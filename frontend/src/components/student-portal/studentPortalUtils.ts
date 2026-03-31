@@ -2,7 +2,7 @@ import JSZip from 'jszip';
 import type { PreviewFile, SubmissionSuccessData } from './types';
 
 export const SUPPORTED_EXTS = ['.java', '.c', '.cpp', '.h'];
-export const ACCEPTED_UPLOAD = ['.zip', '.c', '.cpp', '.java'];
+export const ACCEPTED_UPLOAD = ['.zip', '.c', '.cpp', '.java', '.h'];
 
 export const formatTorontoTimestamp = (timestamp?: string) => {
   if (!timestamp) return 'N/A';

@@ -17,7 +17,7 @@ const ArchivedAssignmentsSection: React.FC<ArchivedAssignmentsSectionProps> = ({
   const [expanded, setExpanded] = React.useState(false);
 
   return (
-    <div style={{ marginTop: '3rem' }}>
+    <div style={{ marginTop: '1.75rem' }}>
       <button
         onClick={() => setExpanded(!expanded)}
         style={{
@@ -34,7 +34,7 @@ const ArchivedAssignmentsSection: React.FC<ArchivedAssignmentsSectionProps> = ({
         }}
       >
         <Archive size={18} style={{ color: 'var(--text-tertiary)' }} />
-        <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+        <span style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
           Archived Assignments
         </span>
         <span style={{ fontSize: '0.8rem', background: 'var(--bg-surface-highest)', padding: '0.15rem 0.6rem', borderRadius: 'var(--radius-full)', color: 'var(--text-tertiary)', fontWeight: 600 }}>

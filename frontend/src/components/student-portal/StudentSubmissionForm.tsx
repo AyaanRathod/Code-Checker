@@ -1,7 +1,7 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, ArrowRight, Badge, File as FileIcon, FileCode2, Key, UploadCloud, User, X } from 'lucide-react';
-import { formatKb } from './studentPortalUtils';
+import { ACCEPTED_UPLOAD, formatKb } from './studentPortalUtils';
 import type { PreviewFile, StudentSubmissionFormState } from './types';
 
 interface StudentSubmissionFormProps {
@@ -33,37 +33,54 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
   onInputFileChange,
   onClearFile,
 }) => {
+  const inputIdAccessKey = 'student-access-key';
+  const inputIdStudentName = 'student-name';
+  const inputIdStudentId = 'student-id';
+  const inputIdSubmissionFile = 'submission-file-input';
+  const formErrorId = 'student-submission-form-error';
+  const acceptedUploadList = ACCEPTED_UPLOAD.join(',');
+
   return (
     <form onSubmit={onSubmit}>
       <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-        <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>Access Key</label>
+        <label htmlFor={inputIdAccessKey} className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>Access Key</label>
         <div className="input-with-icon">
           <Key />
-          <input type="text" className="form-input" style={{ background: 'var(--bg-surface)' }} placeholder="e.g. A1-B2C3" value={formState.accessKey} onChange={(event) => onFieldChange('accessKey', event.target.value)} required />
+          <input id={inputIdAccessKey} type="text" className="form-input" style={{ background: 'var(--bg-surface)' }} placeholder="e.g. A1-B2C3" value={formState.accessKey} onChange={(event) => onFieldChange('accessKey', event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? formErrorId : undefined} disabled={loading} required />
         </div>
       </div>
 
       <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-        <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>Student Name</label>
+        <label htmlFor={inputIdStudentName} className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>Student Name</label>
         <div className="input-with-icon">
           <User />
-          <input type="text" className="form-input" style={{ background: 'var(--bg-surface)' }} placeholder="John Doe" value={formState.studentName} onChange={(event) => onFieldChange('studentName', event.target.value)} required />
+          <input id={inputIdStudentName} type="text" className="form-input" style={{ background: 'var(--bg-surface)' }} placeholder="John Doe" value={formState.studentName} onChange={(event) => onFieldChange('studentName', event.target.value)} autoComplete="name" aria-invalid={Boolean(error)} aria-describedby={error ? formErrorId : undefined} disabled={loading} required />
         </div>
       </div>
 
       <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-        <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>Student ID</label>
+        <label htmlFor={inputIdStudentId} className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>Student ID</label>
         <div className="input-with-icon">
           <Badge />
-          <input type="text" className="form-input" style={{ background: 'var(--bg-surface)' }} placeholder="1234567" value={formState.studentId} onChange={(event) => onFieldChange('studentId', event.target.value)} required />
+          <input id={inputIdStudentId} type="text" className="form-input" style={{ background: 'var(--bg-surface)' }} placeholder="1234567" value={formState.studentId} onChange={(event) => onFieldChange('studentId', event.target.value)} inputMode="numeric" autoComplete="off" aria-invalid={Boolean(error)} aria-describedby={error ? formErrorId : undefined} disabled={loading} required />
         </div>
       </div>
 
       <div className="form-group" style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
-        <label className="form-label" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.3rem', fontWeight: 600 }}>File Submission</label>
+        <label htmlFor={inputIdSubmissionFile} className="form-label" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.3rem', fontWeight: 600 }}>File Submission</label>
         <div
           {...dragHandlers}
-          onClick={() => document.getElementById('submission-file-input')?.click()}
+          onClick={() => document.getElementById(inputIdSubmissionFile)?.click()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              document.getElementById(inputIdSubmissionFile)?.click();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label="Upload submission file"
+          aria-disabled={loading}
           style={{
             border: `2px dashed ${dragActive ? 'var(--brand-red)' : 'var(--border-strong)'}`,
             borderRadius: 'var(--radius-lg)',
@@ -75,7 +92,7 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
           }}
           className="file-drop-area"
         >
-          <input id="submission-file-input" type="file" onChange={onInputFileChange} accept=".zip,.c,.cpp,.java" style={{ display: 'none' }} />
+          <input id={inputIdSubmissionFile} type="file" onChange={onInputFileChange} accept={acceptedUploadList} style={{ display: 'none' }} disabled={loading} />
 
           {dragActive ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0' }}>
@@ -95,8 +112,8 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
                   position: 'absolute',
                   top: '-0.25rem',
                   right: '-0.25rem',
-                  width: '22px',
-                  height: '22px',
+                  width: '32px',
+                  height: '32px',
                   borderRadius: '50%',
                   background: 'var(--bg-surface-highest)',
                   border: '1px solid var(--border-subtle)',
@@ -108,6 +125,7 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
                   transition: 'all 0.15s ease',
                   padding: 0,
                 }}
+                disabled={loading}
                 onMouseEnter={(event) => {
                   event.currentTarget.style.background = '#fef2f2';
                   event.currentTarget.style.color = '#dc2626';
@@ -134,7 +152,7 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
               <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
                 <span style={{ color: 'var(--brand-red)', fontWeight: 600 }}>Upload a file</span> or drag and drop
               </span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>Supports .zip, .c, .cpp, .java up to 50MB</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>Supports .zip, .c, .cpp, .java, .h up to 50MB</span>
             </div>
           )}
         </div>
@@ -181,13 +199,13 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
         {showZipNoValidFilesWarning && (
           <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem', color: '#92400e', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <AlertTriangle size={14} style={{ flexShrink: 0 }} />
-            No .java, .c, or .cpp files found in this archive.
+            No .java, .c, .cpp, or .h files found in this archive.
           </div>
         )}
       </div>
 
       {error && (
-        <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} style={{ padding: '0.85rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', color: '#dc2626', marginBottom: '1.25rem', fontSize: '0.85rem', textAlign: 'center' }}>
+        <motion.div id={formErrorId} role="alert" aria-live="assertive" initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} style={{ padding: '0.85rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', color: '#dc2626', marginBottom: '1.25rem', fontSize: '0.85rem', textAlign: 'center' }}>
           {error}
         </motion.div>
       )}

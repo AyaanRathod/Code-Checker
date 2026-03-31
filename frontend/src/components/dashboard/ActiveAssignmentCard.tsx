@@ -70,65 +70,7 @@ const ActiveAssignmentCard: React.FC<ActiveAssignmentCardProps> = ({
         >
           <BookOpen size={12} /> {assignment.course}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button
-            onClick={(event) => {
-              event.preventDefault();
-              openEditModal(assignment);
-            }}
-            title="Edit assignment"
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '0.3rem',
-              cursor: 'pointer',
-              color: 'var(--text-tertiary)',
-              display: 'flex',
-              alignItems: 'center',
-              transition: 'all 0.15s ease',
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.color = 'var(--brand-red)';
-              event.currentTarget.style.borderColor = 'var(--brand-red)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.color = 'var(--text-tertiary)';
-              event.currentTarget.style.borderColor = 'var(--border-subtle)';
-            }}
-          >
-            <Pencil size={13} />
-          </button>
-          {assignment.status === 'Closed' && (
-            <button
-              onClick={(event) => {
-                event.preventDefault();
-                onArchive(assignment.id);
-              }}
-              title="Archive assignment"
-              style={{
-                background: 'transparent',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '0.3rem',
-                cursor: 'pointer',
-                color: 'var(--text-tertiary)',
-                display: 'flex',
-                alignItems: 'center',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.color = '#6366f1';
-                event.currentTarget.style.borderColor = '#6366f1';
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.color = 'var(--text-tertiary)';
-                event.currentTarget.style.borderColor = 'var(--border-subtle)';
-              }}
-            >
-              <Archive size={13} />
-            </button>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
           <span
             style={{
               fontSize: '0.7rem',
@@ -210,6 +152,28 @@ const ActiveAssignmentCard: React.FC<ActiveAssignmentCardProps> = ({
       >
         View Details <ChevronRight size={16} />
       </Link>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: assignment.status === 'Closed' ? '1fr 1fr' : '1fr',
+          gap: '0.6rem',
+          marginTop: '0.65rem',
+        }}
+      >
+        <button className="btn btn-outline" onClick={() => openEditModal(assignment)} style={{ width: '100%', justifyContent: 'center' }}>
+          <Pencil size={14} /> Edit
+        </button>
+        {assignment.status === 'Closed' && (
+          <button
+            className="btn btn-outline"
+            onClick={() => onArchive(assignment.id)}
+            style={{ width: '100%', justifyContent: 'center' }}
+          >
+            <Archive size={14} /> Archive
+          </button>
+        )}
+      </div>
     </motion.div>
   );
 };

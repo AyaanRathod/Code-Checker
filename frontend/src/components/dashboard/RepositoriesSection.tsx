@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Code, Database, Trash2 } from 'lucide-react';
+import { Calendar, ChevronDown, Code, Database, Trash2 } from 'lucide-react';
 import type { Repository } from '../../types/dashboard';
 
 interface RepositoriesSectionProps {
@@ -10,27 +10,68 @@ interface RepositoriesSectionProps {
 }
 
 const RepositoriesSection: React.FC<RepositoriesSectionProps> = ({ repos, onUpload, onDelete }) => {
+  const [expanded, setExpanded] = React.useState(true);
+
   return (
-    <div style={{ marginTop: '3rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.25rem' }}>
-            <Database size={18} style={{ color: '#7c3aed' }} />
-            <h2 style={{ fontSize: '1.15rem', fontWeight: 600, margin: 0 }}>Submission Repositories</h2>
-            {repos.length > 0 && (
-              <span style={{ fontSize: '0.8rem', background: '#ede9fe', padding: '0.1rem 0.55rem', borderRadius: 'var(--radius-full)', color: '#7c3aed', fontWeight: 600 }}>
-                {repos.length}
-              </span>
-            )}
-          </div>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)', margin: 0 }}>
+    <section style={{ marginTop: '1.25rem' }}>
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          border: 'none',
+          background: 'transparent',
+          cursor: 'pointer',
+          padding: '0.5rem 0',
+          marginBottom: expanded ? '0.6rem' : 0,
+          textAlign: 'left',
+        }}
+      >
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.55rem',
+            color: 'var(--text-secondary)',
+            fontWeight: 600,
+            fontSize: '1.05rem',
+          }}
+        >
+          <Database size={16} style={{ color: '#7c3aed' }} />
+          Repository Library
+          <span
+            style={{
+              fontSize: '0.75rem',
+              background: '#ede9fe',
+              color: '#7c3aed',
+              borderRadius: 'var(--radius-full)',
+              padding: '0.1rem 0.5rem',
+              fontWeight: 700,
+              lineHeight: 1.2,
+            }}
+          >
+            {repos.length}
+          </span>
+        </span>
+        <ChevronDown
+          size={16}
+          style={{
+            color: 'var(--text-tertiary)',
+            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s ease',
+          }}
+        />
+      </button>
+
+      {expanded && (
+        <>
+          <p style={{ fontSize: '0.84rem', color: 'var(--text-tertiary)', margin: '0 0 0.65rem 0.1rem' }}>
             Upload past submissions to compare against current assignments.
           </p>
-        </div>
-        <button className="btn btn-outline" onClick={onUpload} style={{ fontSize: '0.85rem', padding: '0.4rem 0.9rem', borderColor: '#7c3aed', color: '#7c3aed' }}>
-          <Database size={15} /> Upload Repository
-        </button>
-      </div>
 
       {repos.length === 0 ? (
         <div
@@ -62,7 +103,7 @@ const RepositoriesSection: React.FC<RepositoriesSectionProps> = ({ repos, onUplo
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
           {repos.map((repo, index) => (
             <motion.div
               key={repo.id}
@@ -70,7 +111,7 @@ const RepositoriesSection: React.FC<RepositoriesSectionProps> = ({ repos, onUplo
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25, delay: index * 0.04 }}
-              style={{ padding: '1.25rem', minWidth: '280px', maxWidth: '320px', flex: '0 0 auto', display: 'flex', flexDirection: 'column' }}
+              style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                 <div style={{ padding: '0.2rem 0.5rem', background: '#ede9fe', borderRadius: 'var(--radius-sm)', fontSize: '0.7rem', fontWeight: 600, color: '#7c3aed', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -123,38 +164,11 @@ const RepositoriesSection: React.FC<RepositoriesSectionProps> = ({ repos, onUplo
               )}
             </motion.div>
           ))}
-
-          <div
-            onClick={onUpload}
-            style={{
-              minWidth: '200px',
-              flex: '0 0 auto',
-              border: '2px dashed var(--border-strong)',
-              borderRadius: 'var(--radius-md)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '1.25rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              gap: '0.5rem',
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.borderColor = '#7c3aed';
-              event.currentTarget.style.background = '#faf5ff';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.borderColor = 'var(--border-strong)';
-              event.currentTarget.style.background = 'transparent';
-            }}
-          >
-            <Database size={20} style={{ color: '#7c3aed', opacity: 0.5 }} />
-            <span style={{ fontSize: '0.8rem', color: '#7c3aed', fontWeight: 600 }}>Upload More</span>
-          </div>
         </div>
       )}
-    </div>
+        </>
+      )}
+    </section>
   );
 };
 
