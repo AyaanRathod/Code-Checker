@@ -1,9 +1,11 @@
 services:
   # Frontend Service (React + Vite + Nginx)
   frontend:
-    build: 
+    build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=/api/v1
     container_name: code_checker_frontend
     ports:
       - "3000:80"
@@ -26,8 +28,10 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
     depends_on:
-      - db
-      - minio
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_started
     networks:
       - app_network
     volumes:
