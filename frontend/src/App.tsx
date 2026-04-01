@@ -12,7 +12,6 @@ import Repositories from './pages/Repositories';
 
 import { ToastProvider } from './components/ui/Toast';
 import { useAuth } from './contexts/AuthContext';
-import { getInitials, getAvatarColor, formatDisplayName } from './types/auth';
 import './index.css';
 
 const GlobalHeader = () => {
@@ -66,46 +65,8 @@ const GlobalHeader = () => {
       </Link>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto' }}>
-        {isFacultyRoute && isAuthenticated && user && (
-          <Link
-            to="/instructor/profile"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              color: 'rgba(255,255,255,0.92)',
-              textDecoration: 'none',
-              fontSize: '0.88rem',
-              fontWeight: 500,
-            }}
-          >
-            <div
-              style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '50%',
-                background: getAvatarColor(user.email),
-                border: '2px solid rgba(255,255,255,0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.65rem',
-                fontWeight: 700,
-                color: 'white',
-                flexShrink: 0,
-              }}
-            >
-              {getInitials(user)}
-            </div>
-            <span>
-              Hello,{' '}
-              <span style={{ fontWeight: 700 }}>{formatDisplayName(user)}</span>
-            </span>
-          </Link>
-        )}
-
         <Link
-          to={isFacultyRoute ? '/' : '/instructor/login'}
+          to={isFacultyRoute ? '/' : (isAuthenticated ? '/instructor/dashboard' : '/instructor/login')}
           style={{
             color: 'rgba(255,255,255,0.85)',
             fontSize: '0.9rem',
