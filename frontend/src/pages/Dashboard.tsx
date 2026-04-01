@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Database, LogOut, ShieldCheck } from 'lucide-react';
+import { BookOpen, Database, LogOut, ShieldCheck, User } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { getInitials, getAvatarColor } from '../types/auth';
 import AssignmentModal from '../components/dashboard/AssignmentModal';
 import RepositoryUploadModal from '../components/dashboard/RepositoryUploadModal';
 import DashboardHeaderStats from '../components/dashboard/DashboardHeaderStats';
@@ -27,6 +29,7 @@ const DEFAULT_ASSIGNMENT_FORM: AssignmentFormState = {
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { user, logout } = useAuth();
 
   const {
     assignments,
@@ -79,7 +82,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    logout();
     navigate('/instructor/login');
   };
 
@@ -317,6 +320,36 @@ const Dashboard: React.FC = () => {
           <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Instructor View</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {/* Personalized greeting */}
+          {user && (
+            <button
+              onClick={() => navigate('/instructor/profile')}
+              className="btn btn-outline"
+              style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+            >
+              <div
+                style={{
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '50%',
+                  background: getAvatarColor(user.email),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.55rem',
+                  fontWeight: 700,
+                  color: 'white',
+                  flexShrink: 0,
+                }}
+              >
+                {getInitials(user)}
+              </div>
+              <span>
+                Hello, <strong>{user.first_name ?? user.username}</strong>
+              </span>
+              <User size={13} />
+            </button>
+          )}
           <button
             onClick={() => navigate('/instructor/repositories')}
             className="btn btn-outline"
