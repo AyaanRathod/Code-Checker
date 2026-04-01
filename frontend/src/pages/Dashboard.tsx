@@ -32,6 +32,7 @@ const Dashboard: React.FC = () => {
     assignments,
     repos,
     loading,
+    fetchAssignments,
     saveAssignment,
     archiveAssignment,
     uploadRepo,
@@ -52,6 +53,7 @@ const Dashboard: React.FC = () => {
   const [repoUploadName, setRepoUploadName] = useState('');
   const [repoUploadLanguage, setRepoUploadLanguage] = useState<'JAVA' | 'CPP' | 'C'>('JAVA');
   const [repoUploadFile, setRepoUploadFile] = useState<File | null>(null);
+  const [repoImportToActive, setRepoImportToActive] = useState(false);
   const [repoUploading, setRepoUploading] = useState(false);
   const [repoUploadError, setRepoUploadError] = useState('');
 
@@ -157,15 +159,24 @@ const Dashboard: React.FC = () => {
     try {
       setRepoUploading(true);
       setRepoUploadError('');
-      await uploadRepo({
+      const result = await uploadRepo({
         name: repoUploadName,
         language: repoUploadLanguage,
         file: repoUploadFile,
+        import_to_assignment: repoImportToActive,
       });
+
+      if (repoImportToActive) {
+        await fetchAssignments();
+        if (result?.imported_to_assignment_title) {
+          showToast(`Created active assignment: ${result.imported_to_assignment_title}`, 'success');
+        }
+      }
 
       setIsRepoModalOpen(false);
       setRepoUploadName('');
       setRepoUploadFile(null);
+      setRepoImportToActive(false);
     } catch (error) {
       setRepoUploadError(extractErrorMessage(error, 'Failed to upload repository'));
     } finally {
@@ -276,13 +287,16 @@ const Dashboard: React.FC = () => {
         uploadFile={repoUploadFile}
         uploadError={repoUploadError}
         uploading={repoUploading}
+        importToActive={repoImportToActive}
         onNameChange={setRepoUploadName}
         onLanguageChange={setRepoUploadLanguage}
         onFileChange={setRepoUploadFile}
+        onImportToActiveChange={setRepoImportToActive}
         onSubmit={handleRepoUpload}
         onClose={() => {
           setIsRepoModalOpen(false);
           setRepoUploadError('');
+          setRepoImportToActive(false);
         }}
       />
 
@@ -334,6 +348,7 @@ const Dashboard: React.FC = () => {
           onOpenCreateModal={openCreateModal}
           onOpenRepoUploadModal={() => {
             setRepoUploadError('');
+            setRepoImportToActive(false);
             setIsRepoModalOpen(true);
           }}
         />

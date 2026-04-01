@@ -70,7 +70,7 @@ const RepositoriesSection: React.FC<RepositoriesSectionProps> = ({ repos, onUplo
       {expanded && (
         <>
           <p style={{ fontSize: '0.84rem', color: 'var(--text-tertiary)', margin: '0 0 0.65rem 0.1rem' }}>
-            Upload past submissions to compare against current assignments.
+            Upload student repositories (current or past) to compare against assignment submissions.
           </p>
 
       {repos.length === 0 ? (
@@ -99,7 +99,7 @@ const RepositoriesSection: React.FC<RepositoriesSectionProps> = ({ repos, onUplo
             No repositories yet
           </p>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', margin: 0 }}>
-            Upload past semester submissions to detect cross-semester plagiarism, or archive an assignment to auto-create one.
+            Upload a zip of student submission zips for analysis, or archive an assignment to auto-create one.
           </p>
         </div>
       ) : (

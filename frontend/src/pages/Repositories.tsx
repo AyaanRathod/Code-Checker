@@ -223,7 +223,7 @@ const Repositories: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '0.8rem', marginBottom: '1.2rem' }}>
           <div>
             <h1 style={{ fontSize: '2rem', marginBottom: '0.25rem' }}>Submission Repositories</h1>
-            <p style={{ color: 'var(--text-secondary)' }}>Manage past submission archives for cross-semester analysis.</p>
+            <p style={{ color: 'var(--text-secondary)' }}>Upload and manage student repositories for current or past assignment analysis.</p>
           </div>
           <button className="btn btn-primary" onClick={() => setIsUploadOpen(true)}>
             <Upload size={18} /> Upload Repository
@@ -237,7 +237,7 @@ const Repositories: React.FC = () => {
             <Database size={48} style={{ opacity: 0.3, margin: '0 auto 1rem auto' }} />
             <h3>No Repositories Yet</h3>
             <p style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
-              Repositories are auto-created when assignments are archived, or you can upload one manually.
+              Repositories can be uploaded manually (zip of student zips) or auto-created when assignments are archived.
             </p>
           </div>
         ) : (

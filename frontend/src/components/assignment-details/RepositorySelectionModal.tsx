@@ -53,7 +53,7 @@ const RepositorySelectionModal: React.FC<RepositorySelectionModalProps> = ({
 
         {repositories.length === 0 ? (
           <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>
-            No repositories available. Archive an assignment or upload a repository first.
+            No repositories available. Upload a repository or archive an assignment first.
           </div>
         ) : (
           <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
