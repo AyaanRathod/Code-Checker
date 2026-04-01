@@ -23,6 +23,7 @@
   - Validated the new report with a frontend production build.
   - Replaced the comparison label separator with ASCII text so jsPDF renders the student pair labels cleanly.
   - Threaded decrypted student-name fields through the assignment comparison response so the PDF can prefer human-readable labels when they are available.
+  - Reworked the PDF around a matrix-first page 2, modernized the risk spread, and removed the file-hotspot section.
 
 ## 2026-03-29
 
