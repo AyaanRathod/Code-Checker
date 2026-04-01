@@ -37,6 +37,12 @@ LANGUAGE_EXTENSIONS = {
 }
 
 
+def _anonymize_submission_label(repo_id: uuid.UUID, label: str) -> str:
+    """Create a stable non-reversible alias for imported repository submissions."""
+    digest = hashlib.sha256(f"{repo_id}:{label}".encode("utf-8")).hexdigest()
+    return f"REPO-{digest[:10].upper()}"
+
+
 @router.get("/")
 async def list_repositories(
     db: AsyncSession = Depends(get_db),
@@ -151,19 +157,23 @@ async def upload_repository(
                 continue
 
             label = os.path.splitext(os.path.basename(entry_name))[0]
+            anonymized_label = _anonymize_submission_label(repo.id, label)
             repo_sub = RepositorySubmission(
                 repository_id=repo.id,
-                label=label
+                label=anonymized_label
             )
             db.add(repo_sub)
             await db.flush()
 
             submission = None
             if assignment:
+                # Active submissions should behave like normal assignment submissions,
+                # so preserve the original inner-zip label for reveal flows.
+                active_identity = label.strip() or anonymized_label
                 submission = Submission(
                     assignment_id=assignment.id,
                     student_name_encrypted=None,
-                    student_id_encrypted=encryption_service.encrypt(label),
+                    student_id_encrypted=encryption_service.encrypt(active_identity),
                     timestamp=datetime.now(timezone.utc),
                     status="Active",
                     attempt_number=1,

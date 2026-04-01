@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { Laptop } from 'lucide-react';
 
 import StudentPortal from './pages/StudentPortal';
 import InstructorLogin from './pages/InstructorLogin';
@@ -29,44 +30,57 @@ const GlobalHeader = () => {
 
   return (
     <div
+      className="global-header"
       style={{
-        background: '#991b1b',
+        background: 'hsl(3, 61%, 34%)',
         color: 'white',
-        padding: '0.65rem 1rem',
+        padding: '0.75rem 1rem',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
-        gap: '0.6rem',
+        gap: '0.85rem',
         flexShrink: 0,
+        boxShadow: '0 8px 18px rgba(127, 29, 29, 0.22)',
+        borderBottom: '1px solid rgba(255,255,255,0.14)',
       }}
     >
       <Link
         to="/"
-        style={{ display: 'flex', flexDirection: 'column', textDecoration: 'none', color: 'white' }}
+        className="global-header-brand"
+        style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', textDecoration: 'none', color: 'white' }}
       >
         <div
+          className="global-logo-badge"
+          aria-hidden="true"
+        >
+          <span className="global-logo-glyph">
+            <Laptop size={18} strokeWidth={2.4} color="rgba(255,255,255,0.96)" />
+          </span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div
+          className="global-header-topline"
           style={{
             fontSize: '0.9rem',
             fontWeight: 800,
-            letterSpacing: '1px',
+            letterSpacing: '0.9px',
             textTransform: 'uppercase',
             marginBottom: '0.1rem',
-            display: 'flex',
-            alignItems: 'baseline',
           }}
         >
-          BROCK{' '}
-          <span style={{ fontSize: '0.7rem', fontWeight: 400, marginLeft: '6px' }}>UNIVERSITY</span>
+          CodeSimilar
         </div>
-        <div style={{ fontSize: '1.2rem', fontWeight: 700, letterSpacing: '-0.4px' }}>
-          Academic Integrity Portal
+        <div className="global-header-title" style={{ fontSize: '1.2rem', fontWeight: 700, letterSpacing: '-0.4px' }}>
+          Academic Integrity Platform
+        </div>
         </div>
       </Link>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto' }}>
         <Link
           to={isFacultyRoute ? '/' : (isAuthenticated ? '/instructor/dashboard' : '/instructor/login')}
+          className="global-header-switch"
           style={{
             color: 'rgba(255,255,255,0.85)',
             fontSize: '0.9rem',
@@ -80,7 +94,7 @@ const GlobalHeader = () => {
           onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
           onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
         >
-          {isFacultyRoute ? 'Submission Page' : 'Faculty Access'}
+          {isFacultyRoute ? 'Submission Page' : 'Instructor Access'}
         </Link>
       </div>
     </div>
@@ -107,6 +121,7 @@ const AppContent = () => {
       </Routes>
 
       <div
+        className="global-footer"
         style={{
           background: 'var(--bg-surface)',
           padding: '0.65rem 1rem',
@@ -120,8 +135,8 @@ const AppContent = () => {
           marginTop: 'auto',
         }}
       >
-        <span>&copy; {new Date().getFullYear()} Brock University. All rights reserved.</span>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <span>&copy; {new Date().getFullYear()} CodeSimilar. All rights reserved.</span>
+        <div className="global-footer-links" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           <a href="#" style={{ color: 'var(--text-tertiary)' }}>Privacy Policy</a>
           <a href="#" style={{ color: 'var(--text-tertiary)' }}>Terms of Service</a>
         </div>

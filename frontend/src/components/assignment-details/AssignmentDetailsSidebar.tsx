@@ -1,5 +1,5 @@
 import React from 'react';
-import { Database, GitCommit, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Users } from 'lucide-react';
+import { Database, GitCommit, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Rows2, Users } from 'lucide-react';
 import type { TabView } from './types';
 
 interface AssignmentDetailsSidebarProps {
@@ -133,9 +133,21 @@ const AssignmentDetailsSidebar: React.FC<AssignmentDetailsSidebarProps> = ({
               justifyContent: isMobileLayout ? 'flex-start' : isSidebarCollapsed ? 'center' : 'flex-start',
               padding: isSidebarCollapsed && !isMobileLayout ? '0.7rem 0.45rem' : undefined,
             }}
-            title="Similarity Matrix Hover"
+            title="Collusion Cluster Graph"
           >
-            <GitCommit size={18} /> {!isSidebarCollapsed || isMobileLayout ? 'Similarity Matrix Hover' : ''}
+            <GitCommit size={18} /> {!isSidebarCollapsed || isMobileLayout ? 'Collusion Cluster Graph' : ''}
+          </button>
+
+          <button
+            onClick={() => onTabChange('heatmap')}
+            className={`sidebar-tab ${activeTab === 'heatmap' ? 'active' : ''}`}
+            style={{
+              justifyContent: isMobileLayout ? 'flex-start' : isSidebarCollapsed ? 'center' : 'flex-start',
+              padding: isSidebarCollapsed && !isMobileLayout ? '0.7rem 0.45rem' : undefined,
+            }}
+            title="Similarity Heatmap"
+          >
+            <Rows2 size={18} /> {!isSidebarCollapsed || isMobileLayout ? 'Similarity Heatmap' : ''}
           </button>
         </>
       )}

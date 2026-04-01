@@ -23,6 +23,7 @@ const ComparisonView: React.FC = () => {
   const { comparison_id } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const [revealed, setRevealed] = useState(false);
 
   const {
     data,
@@ -30,9 +31,7 @@ const ComparisonView: React.FC = () => {
     otherAssignmentMatches,
     otherMatchesLoading,
     currentAssignmentId,
-  } = useComparisonData({ comparisonId: comparison_id, navigate });
-
-  const [revealed, setRevealed] = useState(false);
+  } = useComparisonData({ comparisonId: comparison_id, reveal: revealed, navigate });
   const [selectedSimilarityRange, setSelectedSimilarityRange] = useState('All');
   const [otherMatchesSortOrder, setOtherMatchesSortOrder] = useState<'desc' | 'asc'>('desc');
   const [isNarrowLayout, setIsNarrowLayout] = useState(() => window.innerWidth < 1220);
@@ -56,20 +55,10 @@ const ComparisonView: React.FC = () => {
 
   const allMatchPairs = useMemo<MatchPair[]>(() => parseMatchPairs(data), [data]);
 
-  const matchFileIndexLookup = useMemo(() => {
-    const sourceByMatch = new Map<number, number>();
-    const targetByMatch = new Map<number, number>();
-
-    allMatchPairs.forEach((pair) => {
-      if (!sourceByMatch.has(pair.match_id) && pair.source[0]) {
-        sourceByMatch.set(pair.match_id, pair.source[0].file_index ?? 0);
-      }
-      if (!targetByMatch.has(pair.match_id) && pair.target[0]) {
-        targetByMatch.set(pair.match_id, pair.target[0].file_index ?? 0);
-      }
-    });
-
-    return { sourceByMatch, targetByMatch };
+  const matchById = useMemo(() => {
+    const map = new Map<number, MatchPair>();
+    allMatchPairs.forEach((pair) => map.set(pair.match_id, pair));
+    return map;
   }, [allMatchPairs]);
 
   const sourceArrayIndexByFileIndex = useMemo(() => {
@@ -83,6 +72,28 @@ const ComparisonView: React.FC = () => {
     targetFiles.forEach((f, i) => map.set(f.file_index ?? i, i));
     return map;
   }, [targetFiles]);
+
+  const resolveCounterpartFileIndex = (
+    matchId: number,
+    fromPanel: 'source' | 'target',
+    fromFileIndex: number
+  ): number | undefined => {
+    const pair = matchById.get(matchId);
+    if (!pair) return undefined;
+
+    const fromRanges = fromPanel === 'source' ? pair.source : pair.target;
+    const toRanges = fromPanel === 'source' ? pair.target : pair.source;
+    if (!toRanges.length) return undefined;
+
+    const matchingFromRange = fromRanges.find((range) => (range.file_index ?? 0) === fromFileIndex);
+    if (!matchingFromRange) {
+      return toRanges[0]?.file_index ?? 0;
+    }
+
+    const rangeIdx = fromRanges.indexOf(matchingFromRange);
+    const counterpartRange = toRanges[rangeIdx] ?? toRanges[0];
+    return counterpartRange?.file_index ?? 0;
+  };
 
   const filteredAndSortedOtherMatches = useMemo(
     () => filterAndSortOtherMatches(otherAssignmentMatches, selectedSimilarityRange, otherMatchesSortOrder),
@@ -191,7 +202,8 @@ const ComparisonView: React.FC = () => {
       }
 
       if (otherPanel === 'source') {
-        const sourceFileIndex = matchFileIndexLookup.sourceByMatch.get(blockId);
+        const currentTargetFileIndex = targetFiles[targetFileIdx]?.file_index ?? targetFileIdx;
+        const sourceFileIndex = resolveCounterpartFileIndex(blockId, 'target', currentTargetFileIndex);
         if (typeof sourceFileIndex === 'number') {
           const sourceArrayIndex = sourceArrayIndexByFileIndex.get(sourceFileIndex);
           if (typeof sourceArrayIndex === 'number' && sourceArrayIndex !== sourceFileIdx) {
@@ -200,7 +212,8 @@ const ComparisonView: React.FC = () => {
           }
         }
       } else {
-        const targetFileIndex = matchFileIndexLookup.targetByMatch.get(blockId);
+        const currentSourceFileIndex = sourceFiles[sourceFileIdx]?.file_index ?? sourceFileIdx;
+        const targetFileIndex = resolveCounterpartFileIndex(blockId, 'source', currentSourceFileIndex);
         if (typeof targetFileIndex === 'number') {
           const targetArrayIndex = targetArrayIndexByFileIndex.get(targetFileIndex);
           if (typeof targetArrayIndex === 'number' && targetArrayIndex !== targetFileIdx) {

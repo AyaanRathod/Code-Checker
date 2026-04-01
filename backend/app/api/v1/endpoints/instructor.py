@@ -39,8 +39,18 @@ def _mask_id(encrypted: Optional[str]) -> str:
     """Decrypt and mask a student ID for display (e.g. ab****cd)."""
     if not encrypted:
         return "REDACTED"
-    raw = encryption_service.decrypt(encrypted) or "Unknown"
+    raw = _safe_decrypt(encrypted, "Unknown")
     return (raw[:2] + "****" + raw[-2:]) if len(raw) > 4 else "****"
+
+
+def _safe_decrypt(encrypted: Optional[str], fallback: str = "Unknown") -> str:
+    if not encrypted:
+        return fallback
+    try:
+        return encryption_service.decrypt(encrypted) or fallback
+    except Exception:
+        logger.warning("Failed to decrypt value; returning fallback")
+        return fallback
 
 
 def _decrypt_id(submission) -> str:
@@ -55,6 +65,19 @@ def _decrypt_id(submission) -> str:
 
 def _safe_name(s: str) -> str:
     return "".join(c if c.isalnum() or c in "-_" else "_" for c in s)
+
+
+def _repo_alias(repo_submission) -> str:
+    """Stable, non-reversible alias for repository comparison identities."""
+    if not repo_submission:
+        return "REPO-UNKNOWN"
+    compact = str(repo_submission.id).replace("-", "")
+    return f"REPO-{compact[:8].upper()}"
+
+
+def _repo_display(meta: dict, repo_submission) -> str:
+    repo_name = meta.get("repo_name", "Repository")
+    return f"[{repo_name}] {_repo_alias(repo_submission)}"
 
 
 def _build_range_lookup(items: list) -> tuple[dict, dict]:
@@ -368,28 +391,24 @@ async def get_comparisons(
 
     response_data = []
     for c in comparisons:
-        src_id = encryption_service.decrypt(c.source_submission.student_id_encrypted) if c.source_submission.student_id_encrypted else "Unknown"
-        src_name = encryption_service.decrypt(c.source_submission.student_name_encrypted) if c.source_submission.student_name_encrypted else ""
+        src_id = _safe_decrypt(c.source_submission.student_id_encrypted, "Unknown")
+        src_name = ""
         src_display = (src_id[:2] + "****" + src_id[-2:]) if len(src_id) > 4 else "Student_A"
         comp_type = c.comparison_type or "internal"
 
         if comp_type == "cross_repo" and c.target_repo_submission:
             meta = c.match_metadata or {}
-            tgt_display = f"[{meta.get('repo_name', 'Repository')}] {meta.get('repo_label', c.target_repo_submission.label)}"
-            tgt_id_raw = meta.get("repo_label", c.target_repo_submission.label)
+            tgt_display = _repo_display(meta, c.target_repo_submission)
             tgt_name = ""
         else:
-            tgt_id = encryption_service.decrypt(c.target_submission.student_id_encrypted) if c.target_submission and c.target_submission.student_id_encrypted else "Unknown"
-            tgt_name = encryption_service.decrypt(c.target_submission.student_name_encrypted) if c.target_submission and c.target_submission.student_name_encrypted else ""
+            tgt_id = _safe_decrypt(c.target_submission.student_id_encrypted if c.target_submission else None, "Unknown")
+            tgt_name = ""
             tgt_display = (tgt_id[:2] + "****" + tgt_id[-2:]) if len(tgt_id) > 4 else "Student_B"
-            tgt_id_raw = tgt_id
 
         response_data.append({
             "id": str(c.id),
             "source_student": src_display,
             "target_student": tgt_display,
-            "raw_source_id": src_id,
-            "raw_target_id": tgt_id_raw,
             "source_student_name": src_name,
             "target_student_name": tgt_name,
             "score": float(c.similarity_score),
@@ -402,6 +421,7 @@ async def get_comparisons(
 @router.get("/comparisons/{comparison_id}")
 async def get_comparison_detail(
     comparison_id: uuid.UUID,
+    reveal: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: Instructor = Depends(get_current_user)
 ):
@@ -430,20 +450,29 @@ async def get_comparison_detail(
     comp_type = comparison.comparison_type or "internal"
     meta = comparison.match_metadata or {}
 
-    raw_source = encryption_service.decrypt(comparison.source_submission.student_id_encrypted) if comparison.source_submission.student_id_encrypted else "Unknown Source"
-    source_name = encryption_service.decrypt(comparison.source_submission.student_name_encrypted) if comparison.source_submission.student_name_encrypted else ""
+    raw_source = _safe_decrypt(comparison.source_submission.student_id_encrypted, "Unknown Source")
+    source_masked = (raw_source[:2] + "****" + raw_source[-2:]) if len(raw_source) > 4 else "****"
+    source_identity = raw_source if reveal else source_masked
+    source_name_raw = _safe_decrypt(comparison.source_submission.student_name_encrypted, "")
+    source_name = source_name_raw if reveal else ""
 
     s_files = (await db.execute(select(StoredFile).where(StoredFile.submission_id == comparison.source_submission.id).order_by(StoredFile.storage_path))).scalars().all()
     source_files_out = _files_to_output(s_files, *_build_range_lookup(meta.get("source_files", [])))
 
     tgt_by = _build_range_lookup(meta.get("target_files", []))
+    response_meta = dict(meta)
     if comp_type == "cross_repo" and comparison.target_repo_submission_id:
-        raw_target = f"[{meta.get('repo_name', 'Repository')}] {meta.get('repo_label', '')}"
+        raw_target = _repo_display(meta, comparison.target_repo_submission)
+        target_identity = raw_target
+        response_meta["repo_label"] = _repo_alias(comparison.target_repo_submission)
         target_name = ""
         t_files = (await db.execute(select(StoredFile).where(StoredFile.repository_submission_id == comparison.target_repo_submission_id).order_by(StoredFile.storage_path))).scalars().all()
     else:
-        raw_target = encryption_service.decrypt(comparison.target_submission.student_id_encrypted) if comparison.target_submission and comparison.target_submission.student_id_encrypted else "Unknown Target"
-        target_name = encryption_service.decrypt(comparison.target_submission.student_name_encrypted) if comparison.target_submission and comparison.target_submission.student_name_encrypted else ""
+        raw_target = _safe_decrypt(comparison.target_submission.student_id_encrypted if comparison.target_submission else None, "Unknown Target")
+        target_masked = (raw_target[:2] + "****" + raw_target[-2:]) if len(raw_target) > 4 else "****"
+        target_identity = raw_target if reveal else target_masked
+        target_name_raw = _safe_decrypt(comparison.target_submission.student_name_encrypted if comparison.target_submission else None, "")
+        target_name = target_name_raw if reveal else ""
         t_files = (await db.execute(select(StoredFile).where(StoredFile.submission_id == comparison.target_submission.id).order_by(StoredFile.storage_path))).scalars().all()
     target_files_out = _files_to_output(t_files, *tgt_by)
 
@@ -454,15 +483,15 @@ async def get_comparison_detail(
         "source_submission_id": str(comparison.source_submission_id),
         "target_submission_id": str(comparison.target_submission_id) if comparison.target_submission_id else None,
         "target_repo_submission_id": str(comparison.target_repo_submission_id) if comparison.target_repo_submission_id else None,
-        "source_student_decrypted": raw_source,
-        "target_student_decrypted": raw_target,
+        "source_student_decrypted": source_identity,
+        "target_student_decrypted": target_identity,
         "source_student_name": source_name,
         "target_student_name": target_name,
         "source_code": source_files_out[0]["code"] if source_files_out else "No Source File Found",
         "target_code": target_files_out[0]["code"] if target_files_out else "No Target File Found",
         "source_files": source_files_out,
         "target_files": target_files_out,
-        "metadata": meta
+        "metadata": response_meta
     }
 
 

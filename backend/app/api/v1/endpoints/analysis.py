@@ -1,6 +1,7 @@
 import uuid
 from typing import List, Dict, Optional
 import logging
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -15,6 +16,7 @@ from app.repositories.comparison_result_repository import comparison_result_repo
 
 from app.services.storage_service import storage_service
 from app.services.analysis_service import analysis_service
+from app.services.archival_service import effective_status
 from app.schemas.comparison_result import ComparisonResultCreate, ComparisonResultResponse
 
 router = APIRouter()
@@ -25,6 +27,15 @@ class AnalysisRequest(BaseModel):
     repository_ids: Optional[List[uuid.UUID]] = None
 
 
+def _restored_status(assignment) -> str:
+    """Restore the persisted lifecycle status after analysis completes."""
+    if assignment.status == "Archived":
+        return "Archived"
+    if assignment.deadline and assignment.deadline <= datetime.now(timezone.utc):
+        return "Closed"
+    return "Open"
+
+
 async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Optional[List[uuid.UUID]] = None):
     """
     Background worker function that performs an N x N comparison
@@ -33,8 +44,14 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
     """
     async with AsyncSessionLocal() as db:
         try:
+            assignment = await assignment_repository.get(db, assignment_id)
+            if not assignment:
+                return
+
             submissions = await submission_repository.get_active_by_assignment(db, assignment_id)
             if len(submissions) < 2:
+                assignment.status = _restored_status(assignment)
+                await db.commit()
                 return # Nothing to compare
 
             # Get stored files for each submission
@@ -49,9 +66,6 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
                 sub_files[sub.id] = files
 
             # We need the language from the assignment
-            assignment = await assignment_repository.get(db, assignment_id)
-            if not assignment:
-                return
             lang = assignment.language
 
             # Build boilerplate fingerprint hashes to exclude from comparisons
@@ -250,12 +264,13 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
                                     fname = repo_file_names.get((rs.id, fi), f"file_{fi}")
                                     target_files_meta.append({"file_index": fi, "filename": fname, "ranges": t_file_ranges[fi]})
 
+                                repo_alias = f"REPO-{str(rs.id).replace('-', '')[:8].upper()}"
                                 metadata = {
                                     "source_files": source_files_meta,
                                     "target_files": target_files_meta,
                                     "matched_pairs": matched_pairs,
                                     "repo_name": repo_obj.name,
-                                    "repo_label": rs.label
+                                    "repo_label": repo_alias
                                 }
                                 data = ComparisonResultCreate(
                                     source_submission_id=sub.id,
@@ -266,9 +281,14 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
                                 )
                                 await comparison_result_repository.create(db, data)
 
+            assignment.status = _restored_status(assignment)
             await db.commit()
         except Exception:
             await db.rollback()
+            assignment = await assignment_repository.get(db, assignment_id)
+            if assignment and assignment.status != "Archived":
+                assignment.status = _restored_status(assignment)
+                await db.commit()
             logger.exception("Background analysis failed", extra={"assignment_id": str(assignment_id)})
 
 @router.post("/{assignment_id}/run", status_code=status.HTTP_202_ACCEPTED)
@@ -299,6 +319,9 @@ async def trigger_analysis(
 
     repo_ids = body.repository_ids if body and body.repository_ids else None
 
+    assignment.status = "Analyzing..."
+    await db.commit()
+
     # Queue worker
     background_tasks.add_task(perform_full_analysis, assignment_id, repo_ids)
-    return {"message": "Analysis started in backgroun"}
+    return {"message": "Analysis started in background"}

@@ -72,6 +72,8 @@ This will:
 - Build the frontend and backend
 - Start the database and storage services
 
+If you are deploying with real data, set a dedicated `ENCRYPTION_KEY` in your environment instead of reusing `SECRET_KEY`. If you rotate that key later, keep the previous value in `ENCRYPTION_LEGACY_KEYS` until the old records have been migrated or re-encrypted.
+
 You will know it is ready when you see lines like:
 ```
 code_checker_backend  | Uvicorn running on http://0.0.0.0:8000

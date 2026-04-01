@@ -9,6 +9,7 @@ interface StudentSubmissionFormProps {
   file: File | null;
   previewFiles: PreviewFile[];
   loading: boolean;
+  isMobileLayout: boolean;
   error: string;
   dragActive: boolean;
   dragHandlers: Pick<React.HTMLAttributes<HTMLDivElement>, 'onDragEnter' | 'onDragOver' | 'onDragLeave' | 'onDrop'>;
@@ -24,6 +25,7 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
   file,
   previewFiles,
   loading,
+  isMobileLayout,
   error,
   dragActive,
   dragHandlers,
@@ -100,7 +102,7 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
               <span style={{ color: 'var(--brand-red)', fontWeight: 600, fontSize: '0.9rem' }}>Drop your file here</span>
             </div>
           ) : file ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', position: 'relative' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', position: 'relative', width: '100%' }}>
               <button
                 type="button"
                 onClick={(event) => {
@@ -140,7 +142,23 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
                 <X size={12} />
               </button>
               <FileCode2 size={40} color="var(--brand-red)" />
-              <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.9rem' }}>{file.name}</span>
+              <span
+                title={file.name}
+                style={{
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  fontSize: '0.9rem',
+                  maxWidth: '100%',
+                  width: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  textAlign: 'center',
+                  padding: '0 1.7rem 0 0.25rem',
+                }}
+              >
+                {file.name}
+              </span>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{formatKb(file.size)}</span>
               <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginTop: '0.1rem' }}>Click to replace</span>
             </div>
@@ -150,9 +168,10 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
                 <UploadCloud size={24} color="var(--text-secondary)" />
               </div>
               <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                <span style={{ color: 'var(--brand-red)', fontWeight: 600 }}>Upload a file</span> or drag and drop
+                <span style={{ color: 'var(--brand-red)', fontWeight: 600 }}>{isMobileLayout ? 'Tap to upload a file' : 'Upload a file'}</span>
+                {!isMobileLayout ? ' or drag and drop' : ''}
               </span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>Supports .zip, .c, .cpp, .java, .h up to 50MB</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.25rem', textAlign: 'center' }}>Supports .zip, .c, .cpp, .java, .h up to 50MB</span>
             </div>
           )}
         </div>
@@ -210,11 +229,11 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
         </motion.div>
       )}
 
-      <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '0.85rem', fontSize: '1rem', borderRadius: 'var(--radius-sm)' }} disabled={loading}>
+      <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '0.85rem', fontSize: isMobileLayout ? '0.95rem' : '1rem', borderRadius: 'var(--radius-sm)' }} disabled={loading}>
         {loading ? 'Processing...' : 'Submit'} <ArrowRight size={16} style={{ marginLeft: '0.45rem' }} />
       </button>
       <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-        Need help? <a href="#" style={{ color: 'var(--brand-red)', fontWeight: 600 }}>Contact Support</a>
+        Need help? <a href="mailto:faculty@brocku.ca?subject=CodeSimilar%20Submission%20Help" style={{ color: 'var(--brand-red)', fontWeight: 600 }}>Contact Support</a>
       </div>
     </form>
   );

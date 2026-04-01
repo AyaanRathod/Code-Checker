@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { generatePDFReport } from '../lib/generatePDFReport';
 import { motion } from 'framer-motion';
@@ -10,15 +10,62 @@ import AssignmentDetailsSidebar from '../components/assignment-details/Assignmen
 import PairwiseResultsTab from '../components/assignment-details/PairwiseResultsTab';
 import RepositorySelectionModal from '../components/assignment-details/RepositorySelectionModal';
 import SimilarityMatrixTab from '../components/assignment-details/SimilarityMatrixTab';
+import CollusionClusterTab from '../components/assignment-details/CollusionClusterTab';
 import { useAssignmentDetailsData } from '../hooks/useAssignmentDetailsData';
 import type { AssignmentDetailsLocationState, TabView } from '../components/assignment-details/types';
+
+const TAB_QUERY_KEY = 'tab';
+const TAB_STORAGE_PREFIX = 'assignmentDetailsActiveTab:';
+
+const isValidTab = (value: string | null): value is TabView => {
+  return value === 'submissions' || value === 'overview' || value === 'results' || value === 'clusters' || value === 'heatmap';
+};
 
 const AssignmentDetails: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabView>((location.state as AssignmentDetailsLocationState | null)?.initialTab || 'submissions');
+  const skipUrlSyncRef = React.useRef(false);
+  const [activeTab, setActiveTab] = useState<TabView>(() => {
+    const queryTab = searchParams.get(TAB_QUERY_KEY);
+    if (isValidTab(queryTab)) return queryTab;
+
+    const stateTab = (location.state as AssignmentDetailsLocationState | null)?.initialTab;
+    if (stateTab && isValidTab(stateTab)) return stateTab;
+
+    if (id) {
+      const storedTab = localStorage.getItem(`${TAB_STORAGE_PREFIX}${id}`);
+      if (isValidTab(storedTab)) return storedTab;
+    }
+
+    return 'submissions';
+  });
+
+  useEffect(() => {
+    const queryTab = new URLSearchParams(location.search).get(TAB_QUERY_KEY);
+    if (skipUrlSyncRef.current) {
+      skipUrlSyncRef.current = false;
+      return;
+    }
+    if (isValidTab(queryTab) && queryTab !== activeTab) {
+      setActiveTab(queryTab);
+    }
+  }, [location.search, activeTab]);
+
+  useEffect(() => {
+    if (!id) return;
+    localStorage.setItem(`${TAB_STORAGE_PREFIX}${id}`, activeTab);
+  }, [id, activeTab]);
+
+  const handleTabChange = (tab: TabView) => {
+    skipUrlSyncRef.current = true;
+    setActiveTab(tab);
+    const next = new URLSearchParams(location.search);
+    next.set(TAB_QUERY_KEY, tab);
+    setSearchParams(next, { replace: true });
+  };
 
   const {
     assignment,
@@ -104,22 +151,22 @@ const AssignmentDetails: React.FC = () => {
           assignmentStatus={assignment.status}
           isMobileLayout={isMobileLayout}
           isSidebarCollapsed={isSidebarCollapsed}
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
         />
 
         {/* Right Content Area */}
         <div style={{ flex: 1, padding: isMobileLayout ? '0.85rem' : '1.5rem 2rem', overflowY: 'auto' }}>
 
-            <AnimateTab tab={activeTab} target="submissions">
+            <TabPanel activeTab={activeTab} target="submissions">
               <SubmissionsTab submissions={submissions} formatBytes={formatBytes} isMobileLayout={isMobileLayout} />
-            </AnimateTab>
+            </TabPanel>
 
-            <AnimateTab tab={activeTab} target="overview">
+            <TabPanel activeTab={activeTab} target="overview">
               <AnalyticsOverviewTab metrics={metrics} isMobileLayout={isMobileLayout} />
-            </AnimateTab>
+            </TabPanel>
 
-            <AnimateTab tab={activeTab} target="results">
+            <TabPanel activeTab={activeTab} target="results">
               <PairwiseResultsTab
                 isMobileLayout={isMobileLayout}
                 comparisons={filteredAndSortedComparisons}
@@ -128,14 +175,21 @@ const AssignmentDetails: React.FC = () => {
                 onSimilarityRangeChange={setSelectedSimilarityRange}
                 onToggleSimilaritySort={() => setSimilaritySortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
               />
-            </AnimateTab>
+            </TabPanel>
 
-            <AnimateTab tab={activeTab} target="clusters">
+            <TabPanel activeTab={activeTab} target="clusters">
+              <CollusionClusterTab
+                comparisons={comparisons}
+                onInspectComparison={(comparisonId) => navigate(`/instructor/compare/${comparisonId}`)}
+              />
+            </TabPanel>
+
+            <TabPanel activeTab={activeTab} target="heatmap">
               <SimilarityMatrixTab
                 comparisons={comparisons}
                 onInspectComparison={(comparisonId) => navigate(`/instructor/compare/${comparisonId}`)}
               />
-            </AnimateTab>
+            </TabPanel>
 
         </div>
       </div>
@@ -182,11 +236,16 @@ const AssignmentDetails: React.FC = () => {
   );
 };
 
-// Quick helper to animate tabs transitioning
-const AnimateTab: React.FC<{ tab: TabView, target: TabView, children: React.ReactNode }> = ({ tab, target, children }) => {
-  if (tab !== target) return null;
+const TabPanel: React.FC<{ activeTab: TabView; target: TabView; children: React.ReactNode }> = ({ activeTab, target, children }) => {
+  if (activeTab !== target) return null;
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+    <motion.div
+      key={target}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.16, ease: 'easeOut' }}
+      style={{ minHeight: '100%' }}
+    >
       {children}
     </motion.div>
   );

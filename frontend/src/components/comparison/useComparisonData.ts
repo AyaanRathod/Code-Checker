@@ -6,6 +6,7 @@ import { getIdentityTokens } from './comparisonUtils';
 
 interface UseComparisonDataParams {
   comparisonId?: string;
+  reveal: boolean;
   navigate: (to: string) => void;
 }
 
@@ -17,7 +18,7 @@ interface UseComparisonDataResult {
   currentAssignmentId: string | null;
 }
 
-export const useComparisonData = ({ comparisonId, navigate }: UseComparisonDataParams): UseComparisonDataResult => {
+export const useComparisonData = ({ comparisonId, reveal, navigate }: UseComparisonDataParams): UseComparisonDataResult => {
   const { showToast } = useToast();
   const [data, setData] = useState<ComparisonData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,8 +34,11 @@ export const useComparisonData = ({ comparisonId, navigate }: UseComparisonDataP
         return;
       }
 
+      setLoading(true);
+
       try {
         const response = await apiClient.get(`/instructor/comparisons/${comparisonId}`, {
+          params: { reveal },
           headers: { Authorization: `Bearer ${token}` },
         });
         setData(response.data as ComparisonData);
@@ -47,7 +51,7 @@ export const useComparisonData = ({ comparisonId, navigate }: UseComparisonDataP
     };
 
     fetchComparison();
-  }, [comparisonId, navigate]);
+  }, [comparisonId, reveal, navigate]);
 
   useEffect(() => {
     if (!data) return;
@@ -105,7 +109,6 @@ export const useComparisonData = ({ comparisonId, navigate }: UseComparisonDataP
             if (comparison.id === comparisonId) return false;
 
             const sourceTokens = new Set<string>();
-            getIdentityTokens(comparison.raw_source_id).forEach((tokenValue) => sourceTokens.add(tokenValue));
             getIdentityTokens(comparison.source_student).forEach((tokenValue) => sourceTokens.add(tokenValue));
 
             return Array.from(sourceTokens).some((tokenValue) => currentIds.has(tokenValue));

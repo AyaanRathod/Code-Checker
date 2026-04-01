@@ -231,15 +231,15 @@ export const getStyleForLine = (
   }
 
   const sortedIds = Array.from(ids).sort((a, b) => a - b);
-  const blockId = sortedIds[0];
   const isActive = activeBlockId !== null && ids.has(activeBlockId);
-  const paletteId = activeBlockId !== null && ids.has(activeBlockId) ? activeBlockId : blockId;
+  const resolvedBlockId = isActive && activeBlockId !== null ? activeBlockId : sortedIds[0];
+  const paletteId = resolvedBlockId;
   const palette = MATCH_COLOR_PALETTE[paletteId % MATCH_COLOR_PALETTE.length];
 
   return {
     bg: isActive ? palette.activeBg : palette.inactiveBg,
     border: isActive ? palette.activeBorder : palette.inactiveBorder,
-    blockId,
+    blockId: resolvedBlockId,
     isActive,
   };
 };

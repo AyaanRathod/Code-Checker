@@ -28,6 +28,10 @@ services:
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
+      - SECRET_KEY=${SECRET_KEY:-}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      - ENCRYPTION_LEGACY_KEYS=${ENCRYPTION_LEGACY_KEYS:-}
+      - ENCRYPTION_KEY_REQUIRED=${ENCRYPTION_KEY_REQUIRED:-false}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
     depends_on:
       db:

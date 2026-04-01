@@ -52,10 +52,10 @@ const DIAGONAL_BG =
 const CELL_SIZE = 34;
 const HEADER_WIDTH = 90;
 
+const toShortId = (id: string) => (id.length > 9 ? `${id.slice(0, 9)}...` : id);
+
 const SimilarityMatrixTab: React.FC<SimilarityMatrixTabProps> = ({ comparisons, onInspectComparison }) => {
   const studentKeys = buildUniqueMatrixIds(comparisons);
-
-  const toShortId = (id: string) => (id.length > 9 ? `${id.slice(0, 9)}…` : id);
 
   if (studentKeys.length === 0) {
     return (
