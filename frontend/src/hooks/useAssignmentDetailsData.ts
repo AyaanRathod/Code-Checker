@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import apiClient from '../lib/apiClient';
+import { useToast } from '../components/ui/Toast';
 import {
   ASSIGNMENT_DETAILS_SIDEBAR_KEY,
   computeAssignmentMetrics,
@@ -13,14 +14,13 @@ import type {
   AssignmentSubmissionItem,
 } from '../components/assignment-details/types';
 
-const API_BASE = 'http://localhost:8000/api/v1';
-
 interface UseAssignmentDetailsDataParams {
   assignmentId?: string;
   navigate: (path: string) => void;
 }
 
 export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignmentDetailsDataParams) => {
+  const { showToast } = useToast();
   const [assignment, setAssignment] = useState<AssignmentDetailsModel | null>(null);
   const [comparisons, setComparisons] = useState<AssignmentComparisonItem[]>([]);
   const [submissions, setSubmissions] = useState<AssignmentSubmissionItem[]>([]);
@@ -54,10 +54,10 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
 
     try {
       const [assignmentRes, comparisonsRes, submissionsRes, repositoriesRes] = await Promise.all([
-        axios.get(`${API_BASE}/instructor/assignments/${assignmentId}`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_BASE}/instructor/assignments/${assignmentId}/comparisons`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_BASE}/instructor/assignments/${assignmentId}/submissions`, { headers: { Authorization: `Bearer ${token}` } }),
-        axios.get(`${API_BASE}/repositories/`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] as AssignmentRepositoryItem[] })),
+        apiClient.get(`/instructor/assignments/${assignmentId}`, { headers: { Authorization: `Bearer ${token}` } }),
+        apiClient.get(`/instructor/assignments/${assignmentId}/comparisons`, { headers: { Authorization: `Bearer ${token}` } }),
+        apiClient.get(`/instructor/assignments/${assignmentId}/submissions`, { headers: { Authorization: `Bearer ${token}` } }),
+        apiClient.get(`/repositories/`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] as AssignmentRepositoryItem[] })),
       ]);
 
       setAssignment(assignmentRes.data as AssignmentDetailsModel);
@@ -66,7 +66,7 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
       setRepositories(repositoriesRes.data as AssignmentRepositoryItem[]);
     } catch (error) {
       console.error(error);
-      alert('Failed to fetch assignment details.');
+      showToast('Failed to fetch assignment details.', 'error');
     } finally {
       setLoading(false);
     }
@@ -96,25 +96,26 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
       const token = localStorage.getItem('token');
       try {
         const body = repoIds && repoIds.length > 0 ? { repository_ids: repoIds } : {};
-        await axios.post(`${API_BASE}/analysis/${assignmentId}/run`, body, {
+        await apiClient.post(`/analysis/${assignmentId}/run`, body, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
         const message =
           repoIds && repoIds.length > 0
-            ? `Analysis queued: internal + cross-repo comparison against ${repoIds.length} repository(ies). Check back in a moment.`
-            : 'Analysis has been queued to run in the background! Check back in a moment.';
+            ? `Cross-repo analysis queued against ${repoIds.length} repository(ies). Results will appear automatically.`
+            : 'Analysis queued — results will appear automatically when ready.';
 
-        alert(message);
+        showToast(message, 'success');
         setAssignment((prev) => (prev ? { ...prev, status: 'Analyzing...' } : prev));
+        setTimeout(() => fetchDetails(), 1500);
       } catch (error) {
         console.error(error);
-        alert('Failed to trigger analysis. Ensure students have submitted files first.');
+        showToast('Failed to trigger analysis. Ensure students have submitted files first.', 'error');
       } finally {
         setTriggering(false);
       }
     },
-    [assignmentId]
+    [assignmentId, showToast, fetchDetails]
   );
 
   const downloadSubmissions = useCallback(async () => {
@@ -126,7 +127,7 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
 
     setDownloading(true);
     try {
-      const response = await axios.get(`${API_BASE}/instructor/assignments/${assignmentId}/download`, {
+      const response = await apiClient.get(`/instructor/assignments/${assignmentId}/download`, {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob',
       });
@@ -151,11 +152,42 @@ export const useAssignmentDetailsData = ({ assignmentId, navigate }: UseAssignme
         typeof error === 'object' && error !== null && 'response' in error
           ? (error as { response?: { status?: number } }).response?.status
           : undefined;
-      alert(status === 404 ? 'No submissions found to download.' : 'Failed to download submissions.');
+      showToast(status === 404 ? 'No submissions found to download.' : 'Failed to download submissions.', status === 404 ? 'info' : 'error');
     } finally {
       setDownloading(false);
     }
   }, [assignmentId, navigate]);
+
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const wasAnalyzingRef = useRef(false);
+
+  useEffect(() => {
+    const isAnalyzing = assignment?.status === 'Analyzing...';
+
+    if (isAnalyzing) {
+      wasAnalyzingRef.current = true;
+      if (pollingRef.current) return;
+      pollingRef.current = setInterval(() => {
+        fetchDetails();
+      }, 5000);
+    } else {
+      if (wasAnalyzingRef.current) {
+        wasAnalyzingRef.current = false;
+        showToast('Analysis complete — results are ready.', 'success');
+      }
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    }
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [assignment?.status, fetchDetails, showToast]);
 
   const metrics = useMemo(() => computeAssignmentMetrics(comparisons), [comparisons]);
 

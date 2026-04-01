@@ -133,10 +133,14 @@ const AssignmentDetails: React.FC = () => {
         .table-row-hover:hover {
           background-color: var(--bg-surface-raised);
         }
+        .heatmap-cell {
+          position: relative;
+        }
         .heatmap-cell:hover {
-          transform: scale(1.15);
-          box-shadow: var(--shadow-md);
+          transform: scale(1.2);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.18);
           z-index: 10;
+          filter: brightness(1.08);
         }
         .sidebar-tab {
           display: flex;

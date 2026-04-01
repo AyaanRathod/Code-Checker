@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Upload, Trash2, Database, Calendar, Code, X, ShieldCheck, LogOut, UploadCloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import axios from 'axios';
+import apiClient from '../lib/apiClient';
 import { useFileDrop } from '../hooks/useFileDrop';
+import ConfirmModal from '../components/ui/ConfirmModal';
+import { useToast } from '../components/ui/Toast';
 
 const Repositories: React.FC = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [repos, setRepos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -25,7 +29,7 @@ const Repositories: React.FC = () => {
     const token = localStorage.getItem('token');
     if (!token) { navigate('/instructor/login'); return; }
     try {
-      const res = await axios.get('http://localhost:8000/api/v1/repositories/', {
+      const res = await apiClient.get('/repositories/', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setRepos(res.data);
@@ -52,7 +56,7 @@ const Repositories: React.FC = () => {
       formData.append('language', uploadLanguage);
       formData.append('file', uploadFile);
 
-      await axios.post('http://localhost:8000/api/v1/repositories/upload', formData, {
+      await apiClient.post('/repositories/upload', formData, {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
       });
 
@@ -68,16 +72,22 @@ const Repositories: React.FC = () => {
     }
   };
 
-  const handleDelete = async (repoId: string, repoName: string) => {
-    if (!window.confirm(`Delete repository "${repoName}"?\n\nThis will permanently remove all stored files.`)) return;
+  const handleDelete = (repoId: string, repoName: string) => {
+    setConfirmDelete({ id: repoId, name: repoName });
+  };
+
+  const doDelete = async () => {
+    if (!confirmDelete) return;
+    const { id } = confirmDelete;
+    setConfirmDelete(null);
     const token = localStorage.getItem('token');
     try {
-      await axios.delete(`http://localhost:8000/api/v1/repositories/${repoId}`, {
+      await apiClient.delete(`/repositories/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setRepos(repos.filter(r => r.id !== repoId));
+      setRepos(repos.filter(r => r.id !== id));
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to delete repository');
+      showToast(err.response?.data?.detail || 'Failed to delete repository', 'error');
     }
   };
 
@@ -88,6 +98,15 @@ const Repositories: React.FC = () => {
 
   return (
     <div className="main-content" style={{ display: 'flex', flexDirection: 'column' }}>
+      <ConfirmModal
+        open={!!confirmDelete}
+        title={`Delete "${confirmDelete?.name ?? ''}"`}
+        message="This will permanently remove all stored files."
+        confirmLabel="Delete"
+        danger
+        onConfirm={doDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
 
       {/* Upload Modal */}
       <AnimatePresence>

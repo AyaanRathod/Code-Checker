@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, AlertOctagon, Unlock, Info, PanelRightClose, PanelRightOpen, Maximize2, Minimize2 } from 'lucide-react';
-import axios from 'axios';
+import apiClient from '../lib/apiClient';
+import { useToast } from '../components/ui/Toast';
 import RelatedMatchesSidebar from '../components/comparison/RelatedMatchesSidebar';
 import CodePane from '../components/comparison/CodePane';
 import FloatingMatchNavigator from '../components/comparison/FloatingMatchNavigator';
@@ -21,6 +22,7 @@ import type { MatchPair } from '../components/comparison/types';
 const ComparisonView: React.FC = () => {
   const { comparison_id } = useParams();
   const navigate = useNavigate();
+  const { showToast } = useToast();
 
   const {
     data,
@@ -260,8 +262,8 @@ const ComparisonView: React.FC = () => {
     if (!token) { navigate('/instructor/login'); return; }
 
     try {
-      const response = await axios.get(
-        `http://localhost:8000/api/v1/instructor/submissions/${submissionId}/download`,
+      const response = await apiClient.get(
+        `/instructor/submissions/${submissionId}/download`,
         { headers: { Authorization: `Bearer ${token}` }, responseType: 'blob' }
       );
 
@@ -281,7 +283,7 @@ const ComparisonView: React.FC = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      alert('Failed to download submission files.');
+      showToast('Failed to download submission files.', 'error');
     }
   };
 

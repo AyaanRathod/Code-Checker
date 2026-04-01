@@ -10,6 +10,9 @@ from app.core.config import get_settings
 from app.api.v1.router import api_router
 from app.core.database import engine, Base, AsyncSessionLocal
 from app.services.archival_service import finalize_overdue_archives
+from app.core.security import get_password_hash
+from app.models.instructor import Instructor
+from sqlalchemy import select
 # Import models to ensure they are registered with Base
 import app.models.instructor
 import app.models.course
@@ -25,6 +28,23 @@ import app.models.repository_submission
 settings = get_settings()
 logger = logging.getLogger(__name__)
 ARCHIVE_SCHEDULER_LOCK_KEY = 90243011
+
+
+async def _seed_default_instructor() -> None:
+    """Create the default faculty account if it doesn't already exist."""
+    async with AsyncSessionLocal() as session:
+        existing = await session.scalar(select(Instructor).where(Instructor.email == "faculty@brocku.ca"))
+        if not existing:
+            session.add(Instructor(
+                username="faculty",
+                email="faculty@brocku.ca",
+                password_hash=get_password_hash("password123"),
+                first_name="Faculty",
+                last_name="Demo",
+                auth_provider="local",
+            ))
+            await session.commit()
+            logger.info("Seeded default instructor: faculty@brocku.ca")
 
 
 async def run_archive_scheduler(stop_event: asyncio.Event) -> None:
@@ -127,6 +147,31 @@ async def lifespan(app: FastAPI):
                     CREATE INDEX IF NOT EXISTS idx_assignments_status_deadline
                     ON assignments (status, deadline)
                 """))
+
+                # 3. instructors: add profile + OAuth columns (safe to re-run)
+                for col_sql in [
+                    "ALTER TABLE instructors ALTER COLUMN password_hash DROP NOT NULL",
+                    "DO $$ BEGIN ALTER TABLE instructors ADD COLUMN first_name VARCHAR(100); EXCEPTION WHEN duplicate_column THEN NULL; END $$",
+                    "DO $$ BEGIN ALTER TABLE instructors ADD COLUMN last_name VARCHAR(100); EXCEPTION WHEN duplicate_column THEN NULL; END $$",
+                    "DO $$ BEGIN ALTER TABLE instructors ADD COLUMN title VARCHAR(20); EXCEPTION WHEN duplicate_column THEN NULL; END $$",
+                    "DO $$ BEGIN ALTER TABLE instructors ADD COLUMN department VARCHAR(150); EXCEPTION WHEN duplicate_column THEN NULL; END $$",
+                    "DO $$ BEGIN ALTER TABLE instructors ADD COLUMN google_id VARCHAR(255) UNIQUE; EXCEPTION WHEN duplicate_column THEN NULL; END $$",
+                    "DO $$ BEGIN ALTER TABLE instructors ADD COLUMN avatar_url VARCHAR(512); EXCEPTION WHEN duplicate_column THEN NULL; END $$",
+                    "DO $$ BEGIN ALTER TABLE instructors ADD COLUMN auth_provider VARCHAR(10) NOT NULL DEFAULT 'local'; EXCEPTION WHEN duplicate_column THEN NULL; END $$",
+                    "DO $$ BEGIN ALTER TABLE instructors ADD COLUMN updated_at TIMESTAMPTZ; EXCEPTION WHEN duplicate_column THEN NULL; END $$",
+                    "DO $$ BEGIN ALTER TABLE instructors ADD COLUMN last_login_at TIMESTAMPTZ; EXCEPTION WHEN duplicate_column THEN NULL; END $$",
+                ]:
+                    await conn.execute(text(col_sql))
+
+                # Backfill first_name / last_name for existing seed account
+                await conn.execute(text("""
+                    UPDATE instructors
+                    SET first_name = 'Faculty', last_name = 'Demo'
+                    WHERE email = 'faculty@brocku.ca'
+                      AND first_name IS NULL
+                """))
+
+            await _seed_default_instructor()
             break
         except Exception:
             if attempt == 4:
@@ -154,7 +199,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[o.strip() for o in settings.ALLOWED_ORIGINS.split(",")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

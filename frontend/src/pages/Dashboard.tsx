@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Database, LogOut, ShieldCheck } from 'lucide-react';
+import { BookOpen, Database, LogOut, ShieldCheck, User } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { getInitials, getAvatarColor } from '../types/auth';
 import AssignmentModal from '../components/dashboard/AssignmentModal';
 import RepositoryUploadModal from '../components/dashboard/RepositoryUploadModal';
 import DashboardHeaderStats from '../components/dashboard/DashboardHeaderStats';
@@ -8,6 +10,8 @@ import ActiveAssignmentCard from '../components/dashboard/ActiveAssignmentCard';
 import RepositoriesSection from '../components/dashboard/RepositoriesSection';
 import ArchivedAssignmentsSection from '../components/dashboard/ArchivedAssignmentsSection';
 import { useDashboardData } from '../hooks/useDashboardData';
+import ConfirmModal from '../components/ui/ConfirmModal';
+import { useToast } from '../components/ui/Toast';
 import type {
   Assignment,
   AssignmentFilter,
@@ -24,6 +28,8 @@ const DEFAULT_ASSIGNMENT_FORM: AssignmentFormState = {
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  const { user, logout } = useAuth();
 
   const {
     assignments,
@@ -35,6 +41,9 @@ const Dashboard: React.FC = () => {
     deleteRepo,
     extractErrorMessage,
   } = useDashboardData(navigate);
+
+  const [confirmArchive, setConfirmArchive] = useState<{ id: string } | null>(null);
+  const [confirmRepoDelete, setConfirmRepoDelete] = useState<{ id: string; name: string } | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
@@ -72,7 +81,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    logout();
     navigate('/instructor/login');
   };
 
@@ -84,19 +93,18 @@ const Dashboard: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleArchive = async (assignmentId: string) => {
-    const confirmed = window.confirm(
-      'Are you sure you want to archive this assignment?\n\nThis action is IRREVERSIBLE. All student identities (names and IDs) will be permanently deleted. Code files will be preserved for future repository comparisons.'
-    );
+  const handleArchive = (assignmentId: string) => {
+    setConfirmArchive({ id: assignmentId });
+  };
 
-    if (!confirmed) {
-      return;
-    }
-
+  const doArchive = async () => {
+    if (!confirmArchive) return;
+    const { id } = confirmArchive;
+    setConfirmArchive(null);
     try {
-      await archiveAssignment(assignmentId);
+      await archiveAssignment(id);
     } catch (error) {
-      alert(extractErrorMessage(error, 'Failed to archive assignment.'));
+      showToast(extractErrorMessage(error, 'Failed to archive assignment.'), 'error');
     }
   };
 
@@ -169,19 +177,18 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleRepoDelete = async (repoId: string, repoName: string) => {
-    const confirmed = window.confirm(
-      `Delete repository "${repoName}"?\n\nThis will permanently remove all stored files.`
-    );
+  const handleRepoDelete = (repoId: string, repoName: string) => {
+    setConfirmRepoDelete({ id: repoId, name: repoName });
+  };
 
-    if (!confirmed) {
-      return;
-    }
-
+  const doRepoDelete = async () => {
+    if (!confirmRepoDelete) return;
+    const { id } = confirmRepoDelete;
+    setConfirmRepoDelete(null);
     try {
-      await deleteRepo(repoId);
+      await deleteRepo(id);
     } catch (error) {
-      alert(extractErrorMessage(error, 'Failed to delete repository'));
+      showToast(extractErrorMessage(error, 'Failed to delete repository'), 'error');
     }
   };
 
@@ -233,6 +240,24 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="main-content" style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
+      <ConfirmModal
+        open={!!confirmArchive}
+        title="Archive Assignment"
+        message="This action is IRREVERSIBLE. All student identities (names and IDs) will be permanently deleted. Code files will be preserved for future repository comparisons."
+        confirmLabel="Archive"
+        danger
+        onConfirm={doArchive}
+        onCancel={() => setConfirmArchive(null)}
+      />
+      <ConfirmModal
+        open={!!confirmRepoDelete}
+        title={`Delete "${confirmRepoDelete?.name ?? ''}"`}
+        message="This will permanently remove all stored files."
+        confirmLabel="Delete"
+        danger
+        onConfirm={doRepoDelete}
+        onCancel={() => setConfirmRepoDelete(null)}
+      />
       <AssignmentModal
         isOpen={isModalOpen}
         editingAssignment={editingAssignment}
@@ -282,6 +307,36 @@ const Dashboard: React.FC = () => {
           <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>Instructor View</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {/* Personalized greeting */}
+          {user && (
+            <button
+              onClick={() => navigate('/instructor/profile')}
+              className="btn btn-outline"
+              style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+            >
+              <div
+                style={{
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '50%',
+                  background: getAvatarColor(user.email),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.55rem',
+                  fontWeight: 700,
+                  color: 'white',
+                  flexShrink: 0,
+                }}
+              >
+                {getInitials(user)}
+              </div>
+              <span>
+                Hello, <strong>{user.first_name ?? user.username}</strong>
+              </span>
+              <User size={13} />
+            </button>
+          )}
           <button
             onClick={() => navigate('/instructor/repositories')}
             className="btn btn-outline"
