@@ -13,6 +13,7 @@ interface AssignmentDetailsHeaderProps {
   showAnalysisMenu: boolean;
   onBack: () => void;
   onDownloadSubmissions: () => void;
+  onDownloadPDF: () => void;
   onRunAnalysis: () => void;
   onToggleAnalysisMenu: () => void;
   onCloseAnalysisMenu: () => void;
@@ -29,6 +30,7 @@ const AssignmentDetailsHeader: React.FC<AssignmentDetailsHeaderProps> = ({
   showAnalysisMenu,
   onBack,
   onDownloadSubmissions,
+  onDownloadPDF,
   onRunAnalysis,
   onToggleAnalysisMenu,
   onCloseAnalysisMenu,
@@ -85,7 +87,12 @@ const AssignmentDetailsHeader: React.FC<AssignmentDetailsHeaderProps> = ({
             </button>
             {assignment.status !== 'Archived' && (
               <>
-                <button className="btn btn-outline" disabled={comparisonsCount === 0} style={{ background: 'var(--bg-surface)' }}>
+                <button
+                  className="btn btn-outline"
+                  disabled={comparisonsCount === 0}
+                  onClick={onDownloadPDF}
+                  style={{ background: 'var(--bg-surface)' }}
+                >
                   <Download size={16} /> PDF Report
                 </button>
                 <div style={{ position: 'relative' }}>

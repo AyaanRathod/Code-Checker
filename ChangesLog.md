@@ -1,5 +1,15 @@
 # Changes Log
 
+## 2026-04-01
+
+- FRONTEND: Reworked the generated PDF report into a narrative-first, print-style document:
+  - Replaced the old PDF generator layout with a creative report flow in `frontend/src/lib/generatePDFReport.ts`.
+  - Added an editorial cover page, executive brief, ranked finding cards, submission archive appendix, methodology page, and optional similarity map.
+  - Shifted the report from utility-style output toward a documented, insight-led reading experience.
+  - Validated the result with `frontend` TypeScript checks and a production build.
+
+- FRONTEND: Removed the standalone methodology/interpretation page from the generated PDF report and cleaned up the remaining intro copy so the document no longer references that page.
+
 ## 2026-03-29
 
 - DEPLOYMENT: Production-readiness changes for hosting on DigitalOcean VPS:
