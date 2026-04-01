@@ -35,6 +35,7 @@ const Dashboard: React.FC = () => {
     assignments,
     repos,
     loading,
+    fetchAssignments,
     saveAssignment,
     archiveAssignment,
     uploadRepo,
@@ -55,12 +56,12 @@ const Dashboard: React.FC = () => {
   const [repoUploadName, setRepoUploadName] = useState('');
   const [repoUploadLanguage, setRepoUploadLanguage] = useState<'JAVA' | 'CPP' | 'C'>('JAVA');
   const [repoUploadFile, setRepoUploadFile] = useState<File | null>(null);
+  const [repoImportToActive, setRepoImportToActive] = useState(false);
   const [repoUploading, setRepoUploading] = useState(false);
   const [repoUploadError, setRepoUploadError] = useState('');
 
   const [assignmentQuery, setAssignmentQuery] = useState('');
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>('All');
-  const [showRepositories, setShowRepositories] = useState(true);
 
   const formatDeadline = (deadline: string) => {
     const dt = new Date(deadline);
@@ -161,15 +162,24 @@ const Dashboard: React.FC = () => {
     try {
       setRepoUploading(true);
       setRepoUploadError('');
-      await uploadRepo({
+      const result = await uploadRepo({
         name: repoUploadName,
         language: repoUploadLanguage,
         file: repoUploadFile,
+        import_to_assignment: repoImportToActive,
       });
+
+      if (repoImportToActive) {
+        await fetchAssignments();
+        if (result?.imported_to_assignment_title) {
+          showToast(`Created active assignment: ${result.imported_to_assignment_title}`, 'success');
+        }
+      }
 
       setIsRepoModalOpen(false);
       setRepoUploadName('');
       setRepoUploadFile(null);
+      setRepoImportToActive(false);
     } catch (error) {
       setRepoUploadError(extractErrorMessage(error, 'Failed to upload repository'));
     } finally {
@@ -280,13 +290,16 @@ const Dashboard: React.FC = () => {
         uploadFile={repoUploadFile}
         uploadError={repoUploadError}
         uploading={repoUploading}
+        importToActive={repoImportToActive}
         onNameChange={setRepoUploadName}
         onLanguageChange={setRepoUploadLanguage}
         onFileChange={setRepoUploadFile}
+        onImportToActiveChange={setRepoImportToActive}
         onSubmit={handleRepoUpload}
         onClose={() => {
           setIsRepoModalOpen(false);
           setRepoUploadError('');
+          setRepoImportToActive(false);
         }}
       />
 
@@ -366,6 +379,11 @@ const Dashboard: React.FC = () => {
             setAssignmentFilter('All');
           }}
           onOpenCreateModal={openCreateModal}
+          onOpenRepoUploadModal={() => {
+            setRepoUploadError('');
+            setRepoImportToActive(false);
+            setIsRepoModalOpen(true);
+          }}
         />
 
         {loading ? (
@@ -393,41 +411,63 @@ const Dashboard: React.FC = () => {
                   </p>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-                  {filteredActiveAssignments.map((assignment, index) => (
-                    <ActiveAssignmentCard
-                      key={assignment.id}
-                      assignment={assignment}
-                      index={index}
-                      formatDeadline={formatDeadline}
-                      openEditModal={openEditModal}
-                      onArchive={handleArchive}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      margin: '0.25rem 0 0.75rem',
+                    }}
+                  >
+                    <h2
+                      style={{
+                        fontSize: '1.05rem',
+                        margin: 0,
+                        color: 'var(--text-secondary)',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                      }}
+                    >
+                      Active Assignments
+                    <span
+                      style={{
+                        fontSize: '0.75rem',
+                        background: 'var(--bg-surface-highest)',
+                        color: 'var(--text-secondary)',
+                        borderRadius: 'var(--radius-full)',
+                        padding: '0.15rem 0.55rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {filteredActiveAssignments.length}
+                    </span>
+                    </h2>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+                    {filteredActiveAssignments.map((assignment, index) => (
+                      <ActiveAssignmentCard
+                        key={assignment.id}
+                        assignment={assignment}
+                        index={index}
+                        formatDeadline={formatDeadline}
+                        openEditModal={openEditModal}
+                        onArchive={handleArchive}
+                      />
+                    ))}
+                  </div>
+                </>
               ))}
 
-            <div style={{ marginTop: '1.4rem', display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                className="btn btn-outline"
-                style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                onClick={() => setShowRepositories((previous) => !previous)}
-              >
-                {showRepositories ? 'Hide Repositories' : 'Show Repositories'}
-              </button>
-            </div>
-
-            {showRepositories && (
-              <RepositoriesSection
+            <RepositoriesSection
                 repos={repos}
                 onUpload={() => {
                   setRepoUploadError('');
                   setIsRepoModalOpen(true);
                 }}
                 onDelete={handleRepoDelete}
-              />
-            )}
+            />
 
             {archivedAssignments.length > 0 && (
               <ArchivedAssignmentsSection

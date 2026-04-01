@@ -97,14 +97,20 @@ export const useDashboardData = (navigate: (path: string) => void) => {
   );
 
   const uploadRepo = useCallback(
-    async (payload: { name: string; language: string; file: File }) => {
+    async (payload: {
+      name: string;
+      language: string;
+      file: File;
+      import_to_assignment?: boolean;
+    }): Promise<{ imported_to_assignment_id?: string | null; imported_to_assignment_title?: string | null } | undefined> => {
       const token = requireToken();
       if (!token) {
         return;
       }
 
-      await uploadRepositoryApi(token, payload);
+      const result = await uploadRepositoryApi(token, payload);
       await fetchRepos();
+      return result;
     },
     [fetchRepos, requireToken]
   );

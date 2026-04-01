@@ -198,7 +198,7 @@ input, textarea, select {
   align-items: center;
 }
 
-.input-with-icon svg {
+.input-with-icon > svg {
   position: absolute;
   left: 1rem;
   color: var(--text-tertiary);

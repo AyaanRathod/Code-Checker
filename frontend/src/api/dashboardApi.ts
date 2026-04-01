@@ -73,16 +73,26 @@ export const fetchRepositoriesApi = async (token: string): Promise<Repository[]>
 
 export const uploadRepositoryApi = async (
   token: string,
-  payload: { name: string; language: string; file: File }
-): Promise<void> => {
+  payload: {
+    name: string;
+    language: string;
+    file: File;
+    import_to_assignment?: boolean;
+  }
+): Promise<{ imported_to_assignment_id?: string | null; imported_to_assignment_title?: string | null }> => {
   const formData = new FormData();
   formData.append('name', payload.name);
   formData.append('language', payload.language);
   formData.append('file', payload.file);
+  if (payload.import_to_assignment) {
+    formData.append('import_to_assignment', 'true');
+  }
 
-  await apiClient.post('/repositories/upload', formData, {
+  const response = await apiClient.post('/repositories/upload', formData, {
     headers: buildAuthHeaders(token, true),
   });
+
+  return response.data;
 };
 
 export const deleteRepositoryApi = async (token: string, repoId: string): Promise<void> => {

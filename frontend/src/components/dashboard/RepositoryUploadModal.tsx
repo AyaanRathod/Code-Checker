@@ -11,9 +11,11 @@ interface RepositoryUploadModalProps {
   uploadFile: File | null;
   uploadError: string;
   uploading: boolean;
+  importToActive: boolean;
   onNameChange: (value: string) => void;
   onLanguageChange: (value: AssignmentLanguage) => void;
   onFileChange: (file: File | null) => void;
+  onImportToActiveChange: (value: boolean) => void;
   onSubmit: (event: React.FormEvent) => void;
   onClose: () => void;
 }
@@ -25,9 +27,11 @@ const RepositoryUploadModal: React.FC<RepositoryUploadModalProps> = ({
   uploadFile,
   uploadError,
   uploading,
+  importToActive,
   onNameChange,
   onLanguageChange,
   onFileChange,
+  onImportToActiveChange,
   onSubmit,
   onClose,
 }) => {
@@ -97,6 +101,35 @@ const RepositoryUploadModal: React.FC<RepositoryUploadModalProps> = ({
                   idleText="Drop or click to select a .zip file"
                 />
               </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', cursor: 'pointer', userSelect: 'none' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={importToActive}
+                    onChange={(event) => onImportToActiveChange(event.target.checked)}
+                    style={{ accentColor: '#7c3aed' }}
+                  />
+                  <span className="form-label" style={{ marginBottom: 0 }}>Also import as active submissions</span>
+                </label>
+              </div>
+
+              {importToActive && (
+                <div
+                  style={{
+                    padding: '0.7rem 0.8rem',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid #d1fae5',
+                    background: '#ecfdf5',
+                    color: '#065f46',
+                    fontSize: '0.82rem',
+                  }}
+                >
+                  A new active assignment will be created automatically with title prefix [Repo Import].
+                </div>
+              )}
 
               <button type="submit" className="btn btn-primary" disabled={uploading} style={{ marginTop: '0.5rem' }}>
                 {uploading ? 'Uploading & Processing...' : 'Upload Repository'}
