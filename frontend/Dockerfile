@@ -19,8 +19,10 @@ FROM nginx:alpine
 # Copy the build output to replace the default nginx contents.
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy custom nginx configuration
+# Copy nginx configs — prod.conf takes precedence if present
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+ARG NGINX_CONF
+COPY ${NGINX_CONF:-nginx.conf} /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 

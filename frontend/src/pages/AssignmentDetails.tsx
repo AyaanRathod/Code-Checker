@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { generatePDFReport } from '../lib/generatePDFReport';
 import { motion } from 'framer-motion';
 import SubmissionsTab from '../components/assignment-details/SubmissionsTab';
 import AnalyticsOverviewTab from '../components/assignment-details/AnalyticsOverviewTab';
@@ -15,6 +17,7 @@ const AssignmentDetails: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<TabView>((location.state as AssignmentDetailsLocationState | null)?.initialTab || 'submissions');
 
   const {
@@ -75,6 +78,13 @@ const AssignmentDetails: React.FC = () => {
         showAnalysisMenu={showAnalysisMenu}
         onBack={() => navigate('/instructor/dashboard')}
         onDownloadSubmissions={downloadSubmissions}
+        onDownloadPDF={() => generatePDFReport(
+          assignment,
+          submissions,
+          comparisons,
+          metrics,
+          [user?.title, user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || 'Instructor',
+        )}
         onRunAnalysis={() => runAnalysis()}
         onToggleAnalysisMenu={() => setShowAnalysisMenu((prev) => !prev)}
         onCloseAnalysisMenu={() => setShowAnalysisMenu(false)}

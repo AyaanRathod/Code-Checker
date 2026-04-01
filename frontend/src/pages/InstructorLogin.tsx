@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GoogleLogin } from '@react-oauth/google';
-import { Lock, ArrowRight, Mail, Key } from 'lucide-react';
+import { Lock, ArrowRight, Mail, Key, Eye, EyeOff } from 'lucide-react';
 import { loginApi, googleAuthApi } from '../api/authApi';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -15,19 +15,12 @@ const InstructorLogin: React.FC = () => {
   const navigate = useNavigate();
   const { login, isAuthenticated } = useAuth();
 
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
   if (isAuthenticated) {
     navigate('/instructor/dashboard', { replace: true });
     return null;
   }
-
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      navigate('/instructor/dashboard', { replace: true });
-    }
-  }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +66,7 @@ const InstructorLogin: React.FC = () => {
     >
       <motion.div
         className="glass-card"
-        style={{ width: '100%', maxWidth: '400px', padding: '1.45rem 1rem', background: 'var(--bg-surface)' }}
+        style={{ width: '100%', maxWidth: '400px', padding: '1.45rem 1.5rem', background: 'var(--bg-surface)' }}
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
@@ -104,98 +97,63 @@ const InstructorLogin: React.FC = () => {
           <div className="form-group">
             <label htmlFor="instructor-email" className="form-label">Instructor Email</label>
             <div className="input-with-icon">
-                <Mail />
-                <input 
-                  id="instructor-email"
-                  type="email" 
-                  className="form-input" 
-                  placeholder="faculty@brocku.ca" 
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  autoComplete="username"
-                  aria-invalid={error ? 'true' : 'false'}
-                  aria-describedby={error ? 'instructor-login-error' : undefined}
-                  disabled={loading}
-                  required 
-                />
-            </div>
-          </div>
-          
-          <div className="form-group" style={{ marginBottom: '2rem' }}>
-            <label htmlFor="instructor-password" className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Password</span>
-            </label>
-            <div className="input-with-icon">
-                <Key />
-                <input 
-                  id="instructor-password"
-                  type={showPassword ? 'text' : 'password'} 
-                  className="form-input" 
-                  placeholder="••••••••" 
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  aria-invalid={error ? 'true' : 'false'}
-                  aria-describedby={error ? 'instructor-login-error' : undefined}
-                  disabled={loading}
-                  style={{ paddingRight: '2.75rem' }}
-                  required 
-                />
-                <button
-                  type="button"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  onClick={() => setShowPassword((current) => !current)}
-                  className="btn btn-outline"
-                  style={{
-                    position: 'absolute',
-                    right: '0.75rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    minHeight: '1.5rem',
-                    width: '1.5rem',
-                    padding: 0,
-                    lineHeight: 0,
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'var(--text-secondary)'
-                  }}
-                  disabled={loading}
-                >
-                  {showPassword ? <EyeOff size={16} style={{ position: 'static', left: 'auto' }} /> : <Eye size={16} style={{ position: 'static', left: 'auto' }} />}
-                </button>
               <Mail />
               <input
+                id="instructor-email"
                 type="email"
                 className="form-input"
-                placeholder="you@example.com"
+                placeholder="faculty@brocku.ca"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="username"
+                disabled={loading}
                 required
               />
             </div>
           </div>
 
           <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-            <label className="form-label">Password</label>
-            <div className="input-with-icon">
+            <label htmlFor="instructor-password" className="form-label">Password</label>
+            <div className="input-with-icon" style={{ position: 'relative' }}>
               <Key />
               <input
-                type="password"
+                id="instructor-password"
+                type={showPassword ? 'text' : 'password'}
                 className="form-input"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                disabled={loading}
+                style={{ paddingRight: '2.75rem' }}
                 required
               />
+              <button
+                type="button"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowPassword((p) => !p)}
+                style={{
+                  position: 'absolute',
+                  right: '0.75rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  padding: 0,
+                  display: 'flex',
+                }}
+                disabled={loading}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
           </div>
 
           {error && (
             <div
-              id="instructor-login-error"
               role="alert"
-              aria-live="assertive"
-              style={{ padding: '0.85rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', color: '#dc2626', marginBottom: '1.25rem', fontSize: '0.85rem', textAlign: 'center' }}
               style={{
                 padding: '0.75rem',
                 background: '#fef2f2',
