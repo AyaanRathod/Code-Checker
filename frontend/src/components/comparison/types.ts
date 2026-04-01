@@ -31,8 +31,8 @@ export interface AssignmentComparison {
   id: string;
   source_student: string;
   target_student: string;
-  raw_source_id: string;
-  raw_target_id: string;
+  raw_source_id?: string;
+  raw_target_id?: string;
   score: number;
   status: string;
 }

@@ -41,7 +41,7 @@ const PairwiseResultsTab: React.FC<PairwiseResultsTabProps> = ({
 
           <div className="input-with-icon">
             <Search />
-            <input type="text" placeholder="Search Encrypted ID..." className="form-input" style={{ width: isMobileLayout ? '180px' : '280px', background: 'var(--bg-surface)' }} />
+            <input type="text" placeholder="Search Masked ID..." className="form-input" style={{ width: isMobileLayout ? '180px' : '280px', background: 'var(--bg-surface)' }} />
           </div>
         </div>
       </div>
@@ -82,8 +82,8 @@ const PairwiseResultsTab: React.FC<PairwiseResultsTabProps> = ({
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid var(--border-subtle)', background: 'var(--bg-surface-raised)', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                <th style={{ padding: '1rem', fontWeight: 600 }}>Source ID (Encrypted)</th>
-                <th style={{ padding: '1rem', fontWeight: 600 }}>Target ID (Encrypted)</th>
+                <th style={{ padding: '1rem', fontWeight: 600 }}>Source ID (Masked)</th>
+                <th style={{ padding: '1rem', fontWeight: 600 }}>Target ID (Masked)</th>
                 <th style={{ padding: '1rem', fontWeight: 600 }}>
                   <button
                     type="button"

@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  /* Brock University Theme Palette (Light Mode) */
+  /* CodeSimilar Theme Palette (Light Mode) */
   --bg-base: #f8f9fa;
   --bg-surface: #ffffff;
   --bg-surface-raised: #f1f5f9;
@@ -11,7 +11,7 @@
   --text-secondary: #475569;
   --text-tertiary: #94a3b8;
   
-  --brand-red: #aa0000; /* Brock Red */
+  --brand-red: #aa0000; /* CodeSimilar accent */
   --brand-red-hover: #8b0000;
   --brand-secondary: #64748b;
   
@@ -73,6 +73,66 @@ body::before {
   background-size: 80px 140px;
   background-position: 0 0, 0 0, 40px 70px, 40px 70px, 0 0, 40px 70px;
   opacity: 0.6;
+}
+
+.global-header {
+  color: #fff;
+}
+
+.global-header-brand {
+  display: flex;
+  align-items: center;
+}
+
+.global-logo-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 6px 14px rgba(30, 41, 59, 0.22);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.global-logo-glyph {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.global-header-topline {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.global-header-topline-sub {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.global-header-title {
+  color: #fff;
+}
+
+.global-header-switch {
+  backdrop-filter: blur(10px);
+}
+
+.global-footer {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.global-footer-links a {
+  transition: color var(--transition-fast);
+}
+
+.global-footer-links a:hover {
+  color: var(--text-secondary);
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -309,6 +369,18 @@ tr:hover td {
   .global-header-topline {
     font-size: 0.76rem !important;
     letter-spacing: 0.7px !important;
+  }
+
+  .global-logo-badge {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+  }
+
+  .global-logo-glyph {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
   }
 
   .global-header-topline-sub {

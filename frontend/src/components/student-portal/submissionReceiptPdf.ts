@@ -142,7 +142,7 @@ export function buildSubmissionReceiptPdf(successData: SubmissionSuccessData): j
   doc.setProperties({
     title: `Submission Receipt - ${assignmentTitle}`,
     subject: 'Academic Integrity Portal submission receipt',
-    author: 'Brock University Academic Integrity Portal',
+    author: 'CodeSimilar Academic Integrity Portal',
     creator: 'Code Checker',
   });
 

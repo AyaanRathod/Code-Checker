@@ -91,6 +91,8 @@ If your Docker supports the newer syntax, this also works:
 docker compose up --build
 ```
 
+For production-like deployments, set a separate `ENCRYPTION_KEY` for stored student data and keep any previous value in `ENCRYPTION_LEGACY_KEYS` while old ciphertext still exists. `SECRET_KEY` should remain reserved for authentication/session concerns.
+
 To stop containers:
 
 ```bash

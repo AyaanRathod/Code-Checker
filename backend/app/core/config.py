@@ -10,6 +10,9 @@ class Settings(BaseSettings):
 
     # Security
     SECRET_KEY: str = "super_secret_key_change_in_production"
+    ENCRYPTION_KEY: Optional[str] = None
+    ENCRYPTION_LEGACY_KEYS: Optional[str] = None
+    ENCRYPTION_KEY_REQUIRED: bool = False
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
     API_V1_STR: str = "/api/v1"
 

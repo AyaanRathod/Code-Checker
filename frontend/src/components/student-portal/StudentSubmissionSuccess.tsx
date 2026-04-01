@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, CheckCircle, Download, File as FileIcon } from 'lucide-react';
 import { formatKb } from './studentPortalUtils';
@@ -9,6 +9,7 @@ interface StudentSubmissionSuccessProps {
   onSaveReceipt: () => void;
   onSubmitAnother: () => void;
   formatTimestamp: (timestamp?: string) => string;
+  isMobileLayout: boolean;
 }
 
 const StudentSubmissionSuccess: React.FC<StudentSubmissionSuccessProps> = ({
@@ -16,14 +17,29 @@ const StudentSubmissionSuccess: React.FC<StudentSubmissionSuccessProps> = ({
   onSaveReceipt,
   onSubmitAnother,
   formatTimestamp,
+  isMobileLayout,
 }) => {
+  const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle');
+  const receiptId = successData.submission_id || 'N/A';
+
+  const handleCopyReceiptId = async () => {
+    if (!successData.submission_id) return;
+    try {
+      await navigator.clipboard.writeText(successData.submission_id);
+      setCopyState('copied');
+      window.setTimeout(() => setCopyState('idle'), 1500);
+    } catch {
+      // no-op fallback when clipboard is unavailable
+    }
+  };
+
   return (
-    <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+    <div style={{ textAlign: 'center', padding: isMobileLayout ? '0.35rem 0 0.5rem' : '1rem 0' }}>
       <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring' }}>
-        <CheckCircle size={64} color="var(--accent-tertiary)" style={{ margin: '0 auto 1.5rem', display: 'block' }} />
+        <CheckCircle size={isMobileLayout ? 54 : 64} color="var(--accent-tertiary)" style={{ margin: '0 auto 1.2rem', display: 'block' }} />
       </motion.div>
-      <h2 style={{ fontSize: '1.5rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Submission Received</h2>
-      <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>Your file was securely processed and encrypted.</p>
+      <h2 style={{ fontSize: isMobileLayout ? '1.3rem' : '1.5rem', marginBottom: '0.4rem', color: 'var(--text-primary)' }}>Submission Received</h2>
+      <p style={{ color: 'var(--text-secondary)', marginBottom: '1.2rem', fontSize: isMobileLayout ? '0.84rem' : '0.9rem' }}>Your file was securely processed and encrypted.</p>
 
       {successData.health && (
         <motion.div
@@ -48,10 +64,22 @@ const StudentSubmissionSuccess: React.FC<StudentSubmissionSuccessProps> = ({
         </motion.div>
       )}
 
-      <div style={{ background: 'var(--bg-base)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', textAlign: 'left', marginBottom: '1rem' }}>
+      <div style={{ background: 'var(--bg-base)', padding: isMobileLayout ? '0.8rem' : '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', textAlign: 'left', marginBottom: '1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.75rem', fontSize: '0.82rem' }}>
           <span style={{ color: 'var(--text-secondary)' }}>Receipt ID:</span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>{successData.submission_id || 'N/A'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0, maxWidth: isMobileLayout ? '100%' : '67%' }}>
+            <span title={receiptId} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{receiptId}</span>
+            {!!successData.submission_id && (
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={handleCopyReceiptId}
+                style={{ padding: '0.16rem 0.4rem', fontSize: '0.68rem', minHeight: 'unset', lineHeight: 1.2 }}
+              >
+                {copyState === 'copied' ? 'Copied' : 'Copy'}
+              </button>
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.35rem', marginBottom: '0.75rem', fontSize: '0.82rem' }}>
           <span style={{ color: 'var(--text-secondary)' }}>Timestamp:</span>
@@ -98,7 +126,7 @@ const StudentSubmissionSuccess: React.FC<StudentSubmissionSuccessProps> = ({
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.6rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobileLayout ? '1fr' : 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.6rem' }}>
         <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.82rem' }} onClick={onSaveReceipt}>
           <Download size={15} /> Download Receipt
         </button>

@@ -34,7 +34,7 @@ export function getInitials(user: AuthUser): string {
   return (f + l).toUpperCase() || user.username.slice(0, 2).toUpperCase();
 }
 
-/** Deterministic colour from a string, picking from Brock-compatible palette. */
+/** Deterministic colour from a string, picking from the CodeSimilar palette. */
 export function getAvatarColor(seed: string): string {
   const palette = ['#991b1b', '#1e40af', '#065f46', '#92400e', '#4c1d95', '#0f766e'];
   let hash = 0;

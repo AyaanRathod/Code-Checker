@@ -1,4 +1,4 @@
-export type TabView = 'submissions' | 'overview' | 'results' | 'clusters';
+export type TabView = 'submissions' | 'overview' | 'results' | 'clusters' | 'heatmap';
 
 export interface AssignmentDetailsModel {
   id: string;
@@ -12,6 +12,8 @@ export interface AssignmentComparisonItem {
   id: string;
   source_student: string;
   target_student: string;
+  raw_source_id?: string;
+  raw_target_id?: string;
   source_student_name?: string;
   target_student_name?: string;
   score: number;

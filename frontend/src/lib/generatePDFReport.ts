@@ -5,7 +5,7 @@ import type {
   AssignmentMetrics,
   AssignmentSubmissionItem,
 } from '../components/assignment-details/types';
-import { buildUniqueMatrixIds, findComparisonPair, formatBytes } from '../components/assignment-details/assignmentDetailsUtils';
+import { buildCollusionGraphData, buildUniqueMatrixIds, findComparisonPair, formatBytes } from '../components/assignment-details/assignmentDetailsUtils';
 
 type Color = [number, number, number];
 
@@ -70,6 +70,14 @@ function truncate(doc: jsPDF, text: string, maxWidth: number): string {
 
 function formatPercentage(value: number): string {
   return `${value.toFixed(1)}%`;
+}
+
+function maskIdentity(value: string): string {
+  const clean = (value || '').trim();
+  if (!clean) return '****';
+  if (clean.includes('****')) return clean;
+  if (clean.length <= 4) return '****';
+  return `${clean.slice(0, 2)}****${clean.slice(-2)}`;
 }
 
 function getStatusStyle(status: string): { label: string; fill: Color; text: Color } {
@@ -354,6 +362,131 @@ function drawSimilarityMapPage(doc: jsPDF, assignment: AssignmentDetailsModel, c
   drawMatrixLegend(doc, PAGE_H - 24);
 }
 
+function drawCollusionClusterPage(doc: jsPDF, assignment: AssignmentDetailsModel, comparisons: AssignmentComparisonItem[]): void {
+  const threshold = 70;
+  const graphData = buildCollusionGraphData(comparisons, threshold, { width: 150, height: 95 });
+
+  doc.setTextColor(...COLORS.ink);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14.6);
+  doc.text('Collusion Cluster Graph', MARGIN, 18);
+
+  const subtitle = `Clustered network view for ${assignment.course || 'Course'} ${assignment.title || 'Assignment'}. Links represent internal submission pairs at or above ${threshold}% similarity.`;
+  doc.setTextColor(...COLORS.text);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.2);
+  doc.text(doc.splitTextToSize(subtitle, CONTENT_W), MARGIN, 25);
+
+  const cardW = (CONTENT_W - 6) / 3;
+  drawMetricCard(doc, MARGIN, 35, cardW, 18, 'Clusters found', String(graphData.clusters.length), COLORS.brand);
+  drawMetricCard(doc, MARGIN + cardW + 3, 35, cardW, 18, 'Flagged pairs', String(graphData.edges.length), COLORS.danger);
+  drawMetricCard(doc, MARGIN + (cardW + 3) * 2, 35, cardW, 18, 'Internal pairs', String(graphData.totalInternalPairs), COLORS.warning);
+
+  if (!graphData.edges.length) {
+    doc.setFillColor(...COLORS.paper);
+    doc.setDrawColor(...COLORS.line);
+    doc.roundedRect(MARGIN, 62, CONTENT_W, 26, 3, 3, 'FD');
+    doc.setTextColor(...COLORS.muted);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8.0);
+    doc.text(`No collusion clusters at ${threshold}% threshold.`, PAGE_W / 2, 76, { align: 'center' });
+    return;
+  }
+
+  const panelX = MARGIN;
+  const panelY = 62;
+  const panelW = CONTENT_W;
+  const panelH = 116;
+
+  doc.setFillColor(...COLORS.white);
+  doc.setDrawColor(...COLORS.line);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(panelX, panelY, panelW, panelH, 3, 3, 'FD');
+
+  doc.setFillColor(...COLORS.paper);
+  doc.roundedRect(panelX + 2, panelY + 2, panelW - 4, panelH - 4, 2.2, 2.2, 'F');
+
+  const nodeMap = new Map(graphData.nodes.map((node) => [node.id, node]));
+  const palette: Color[] = [
+    [220, 38, 38],
+    [234, 88, 12],
+    [217, 119, 6],
+    [15, 118, 110],
+    [37, 99, 235],
+    [124, 58, 237],
+    [190, 24, 93],
+  ];
+
+  const graphPad = 8;
+  const graphX = panelX + graphPad;
+  const graphY = panelY + graphPad;
+  const graphW = panelW - graphPad * 2;
+  const graphH = panelH - graphPad * 2;
+
+  graphData.edges.forEach((edge) => {
+    const from = nodeMap.get(edge.from);
+    const to = nodeMap.get(edge.to);
+    if (!from || !to) return;
+
+    const x1 = graphX + (from.x / 150) * graphW;
+    const y1 = graphY + (from.y / 95) * graphH;
+    const x2 = graphX + (to.x / 150) * graphW;
+    const y2 = graphY + (to.y / 95) * graphH;
+    const intensity = Math.min(1, Math.max(0.2, edge.score / 100));
+
+    doc.setDrawColor(220, 38, 38);
+    doc.setLineWidth(Math.max(0.25, intensity * 0.8));
+    doc.line(x1, y1, x2, y2);
+  });
+
+  graphData.nodes.forEach((node) => {
+    const color = palette[(node.clusterId - 1) % palette.length];
+    const x = graphX + (node.x / 150) * graphW;
+    const y = graphY + (node.y / 95) * graphH;
+
+    doc.setFillColor(...color);
+    doc.setDrawColor(...COLORS.white);
+    doc.setLineWidth(0.2);
+    doc.circle(x, y, 2.4, 'FD');
+  });
+
+  let tableY = panelY + panelH + 9;
+  doc.setTextColor(...COLORS.ink);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.2);
+  doc.text('Flagged Cluster Summary', MARGIN, tableY);
+  tableY += 6;
+
+  const shownClusters = graphData.clusters.slice(0, 6);
+  shownClusters.forEach((cluster) => {
+    doc.setDrawColor(...COLORS.line);
+    doc.setFillColor(...COLORS.white);
+    doc.roundedRect(MARGIN, tableY - 3.6, CONTENT_W, 12.5, 2, 2, 'FD');
+
+    const chipFill = cluster.risk === 'High Risk' ? COLORS.dangerBg : COLORS.warningBg;
+    const chipText = cluster.risk === 'High Risk' ? COLORS.danger : COLORS.warning;
+    drawPill(doc, PAGE_W - MARGIN - 25, tableY - 2.1, 25, 5.5, cluster.risk.toUpperCase(), chipFill, chipText);
+
+    doc.setTextColor(...COLORS.ink);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.0);
+    doc.text(`Cluster #${cluster.id}`, MARGIN + 3, tableY + 0.6);
+
+    doc.setTextColor(...COLORS.text);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.0);
+    doc.text(
+      `${cluster.members.length} members | ${cluster.pairCount} linked pairs | max ${cluster.maxScore.toFixed(1)}% | avg ${cluster.avgScore.toFixed(1)}%`,
+      MARGIN + 3,
+      tableY + 4.8
+    );
+    const maskedMembers = cluster.memberLabels.map(maskIdentity).join(', ');
+    doc.text(maskedMembers, MARGIN + 3, tableY + 8.4);
+
+    tableY += 14;
+  });
+}
+
 export function generatePDFReport(
   assignment: AssignmentDetailsModel,
   submissions: AssignmentSubmissionItem[],
@@ -372,12 +505,12 @@ export function generatePDFReport(
   const totalBytes = submissions.reduce((sum, submission) => sum + submission.total_bytes, 0);
   const generatedAt = formatDateTime(now.toISOString());
   const fileName = `integrity-report-${slugify(assignment.course || 'course')}-${slugify(assignment.title || 'assignment')}-${now.toISOString().slice(0, 10)}.pdf`;
-  const summary = `This report condenses ${totalComparisons} comparison pair${totalComparisons === 1 ? '' : 's'} across ${submissions.length} submission${submissions.length === 1 ? '' : 's'}. The matrix on page 2 is the primary pairwise view, while the risk spread shows the overall score distribution. Peak similarity reaches ${formatPercentage(maxScore)}. Data footprint: ${totalLines.toLocaleString('en-CA')} lines across ${formatBytes(totalBytes)}.`;
+  const summary = `This report condenses ${totalComparisons} comparison pair${totalComparisons === 1 ? '' : 's'} across ${submissions.length} submission${submissions.length === 1 ? '' : 's'}. The matrix on page 2 is the pairwise view and page 3 highlights collusion clusters. Peak similarity reaches ${formatPercentage(maxScore)}. Data footprint: ${totalLines.toLocaleString('en-CA')} lines across ${formatBytes(totalBytes)}.`;
 
   doc.setProperties({
     title: `Academic Integrity Report - ${assignment.title}`,
     subject: 'Compact academic integrity report',
-    author: instructorName || 'Brock University',
+    author: instructorName || 'CodeSimilar',
     creator: 'Code Checker',
   });
 
@@ -411,6 +544,9 @@ export function generatePDFReport(
 
   doc.addPage();
   drawSimilarityMapPage(doc, assignment, comparisons);
+
+  doc.addPage();
+  drawCollusionClusterPage(doc, assignment, comparisons);
 
   doc.save(fileName);
 }

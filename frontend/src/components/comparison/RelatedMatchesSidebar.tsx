@@ -116,8 +116,8 @@ const RelatedMatchesSidebar: React.FC<RelatedMatchesSidebarProps> = ({
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {matches.map((match) => {
               const statusStyles = getStatusStyles(match.status);
-              const sourceLabel = revealed ? match.raw_source_id : match.source_student;
-              const targetLabel = revealed ? match.raw_target_id : match.target_student;
+              const sourceLabel = match.source_student;
+              const targetLabel = match.target_student;
 
               return (
                 <div key={match.id} style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>

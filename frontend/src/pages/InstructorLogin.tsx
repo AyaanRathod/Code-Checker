@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GoogleLogin } from '@react-oauth/google';
 import { Lock, ArrowRight, Mail, Key, Eye, EyeOff } from 'lucide-react';
@@ -12,14 +12,22 @@ const InstructorLogin: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const navigate = useNavigate();
   const { login, isAuthenticated } = useAuth();
 
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const isMobileLayout = viewportWidth < 640;
+  const googleButtonWidth = Math.max(220, Math.min(368, viewportWidth - (isMobileLayout ? 86 : 120)));
+
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   if (isAuthenticated) {
-    navigate('/instructor/dashboard', { replace: true });
-    return null;
+    return <Navigate to="/instructor/dashboard" replace />;
   }
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -60,18 +68,23 @@ const InstructorLogin: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1.25rem 0.85rem',
+        justifyContent: isMobileLayout ? 'flex-start' : 'center',
+        padding: isMobileLayout ? '0.85rem 0.6rem 1rem' : '1.25rem 0.85rem',
       }}
     >
       <motion.div
         className="glass-card"
-        style={{ width: '100%', maxWidth: '400px', padding: '1.45rem 1.5rem', background: 'var(--bg-surface)' }}
+        style={{
+          width: '100%',
+          maxWidth: isMobileLayout ? '100%' : '400px',
+          padding: isMobileLayout ? '1.2rem 1rem' : '1.45rem 1.5rem',
+          background: 'var(--bg-surface)',
+        }}
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: isMobileLayout ? '1rem' : '1.25rem' }}>
           <div
             style={{
               width: '50px',
@@ -87,8 +100,8 @@ const InstructorLogin: React.FC = () => {
           >
             <Lock size={24} color="var(--brand-red)" />
           </div>
-          <h2 style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>Faculty Login</h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+          <h2 style={{ fontSize: isMobileLayout ? '1.35rem' : '1.5rem', marginBottom: '0.25rem' }}>Instructor Login</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: isMobileLayout ? '0.82rem' : '0.85rem' }}>
             Authenticate to view analysis reports.
           </p>
         </div>
@@ -104,7 +117,10 @@ const InstructorLogin: React.FC = () => {
                 className="form-input"
                 placeholder="faculty@brocku.ca"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) setError('');
+                }}
                 autoComplete="username"
                 disabled={loading}
                 required
@@ -112,7 +128,7 @@ const InstructorLogin: React.FC = () => {
             </div>
           </div>
 
-          <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+          <div className="form-group" style={{ marginBottom: isMobileLayout ? '1.25rem' : '1.5rem' }}>
             <label htmlFor="instructor-password" className="form-label">Password</label>
             <div className="input-with-icon" style={{ position: 'relative' }}>
               <Key />
@@ -122,7 +138,10 @@ const InstructorLogin: React.FC = () => {
                 className="form-input"
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) setError('');
+                }}
                 autoComplete="current-password"
                 disabled={loading}
                 style={{ paddingRight: '2.75rem' }}
@@ -161,7 +180,7 @@ const InstructorLogin: React.FC = () => {
                 borderRadius: 'var(--radius-sm)',
                 color: '#dc2626',
                 marginBottom: '1rem',
-                fontSize: '0.85rem',
+                fontSize: isMobileLayout ? '0.8rem' : '0.85rem',
                 textAlign: 'center',
               }}
             >
@@ -194,22 +213,22 @@ const InstructorLogin: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.75rem',
-                margin: '1.25rem 0',
+                margin: isMobileLayout ? '1rem 0' : '1.25rem 0',
                 color: 'var(--text-tertiary)',
-                fontSize: '0.8rem',
+                fontSize: isMobileLayout ? '0.76rem' : '0.8rem',
               }}
             >
               <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
               or continue with
               <div style={{ flex: 1, height: '1px', background: 'var(--border-subtle)' }} />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
               <GoogleLogin
                 onSuccess={handleGoogleSuccess}
                 onError={() => setError('Google sign-in failed. Please try again.')}
                 text="signin_with"
                 shape="rectangular"
-                width="368"
+                width={`${googleButtonWidth}`}
               />
             </div>
           </>
@@ -218,8 +237,8 @@ const InstructorLogin: React.FC = () => {
         <p
           style={{
             textAlign: 'center',
-            marginTop: '1.25rem',
-            fontSize: '0.85rem',
+            marginTop: isMobileLayout ? '1rem' : '1.25rem',
+            fontSize: isMobileLayout ? '0.82rem' : '0.85rem',
             color: 'var(--text-secondary)',
           }}
         >
