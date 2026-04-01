@@ -10,6 +10,20 @@
 
 - FRONTEND: Removed the standalone methodology/interpretation page from the generated PDF report and cleaned up the remaining intro copy so the document no longer references that page.
 
+- FRONTEND: Upgraded the Student Portal receipt export from plain text to a professional PDF receipt:
+  - Added `frontend/src/components/student-portal/submissionReceiptPdf.ts` to render a branded receipt with summary cards, receipt metadata, file table, and verification note.
+  - Updated the Save Receipt action to download `receipt_*.pdf` instead of a `.txt` file.
+  - Updated the button label to make the output format explicit for students.
+
+- FRONTEND: Simplified the Student Portal PDF receipt layout to remove decorative cover-style content and keep only the essential receipt details, status line, and file list.
+
+- FRONTEND: Compressed the assignment PDF report into a strict two-page brief:
+  - Replaced the oversized report layout with a lean summary focused on overall metrics, the risk spread, top findings, and a compact evidence snapshot.
+  - Kept the report capped at two pages so large comparison sets stay readable instead of expanding into a long narrative document.
+  - Validated the new report with a frontend production build.
+  - Replaced the comparison label separator with ASCII text so jsPDF renders the student pair labels cleanly.
+  - Threaded decrypted student-name fields through the assignment comparison response so the PDF can prefer human-readable labels when they are available.
+
 ## 2026-03-29
 
 - DEPLOYMENT: Production-readiness changes for hosting on DigitalOcean VPS:

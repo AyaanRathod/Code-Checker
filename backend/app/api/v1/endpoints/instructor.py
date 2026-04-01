@@ -369,6 +369,7 @@ async def get_comparisons(
     response_data = []
     for c in comparisons:
         src_id = encryption_service.decrypt(c.source_submission.student_id_encrypted) if c.source_submission.student_id_encrypted else "Unknown"
+        src_name = encryption_service.decrypt(c.source_submission.student_name_encrypted) if c.source_submission.student_name_encrypted else ""
         src_display = (src_id[:2] + "****" + src_id[-2:]) if len(src_id) > 4 else "Student_A"
         comp_type = c.comparison_type or "internal"
 
@@ -376,8 +377,10 @@ async def get_comparisons(
             meta = c.match_metadata or {}
             tgt_display = f"[{meta.get('repo_name', 'Repository')}] {meta.get('repo_label', c.target_repo_submission.label)}"
             tgt_id_raw = meta.get("repo_label", c.target_repo_submission.label)
+            tgt_name = ""
         else:
             tgt_id = encryption_service.decrypt(c.target_submission.student_id_encrypted) if c.target_submission and c.target_submission.student_id_encrypted else "Unknown"
+            tgt_name = encryption_service.decrypt(c.target_submission.student_name_encrypted) if c.target_submission and c.target_submission.student_name_encrypted else ""
             tgt_display = (tgt_id[:2] + "****" + tgt_id[-2:]) if len(tgt_id) > 4 else "Student_B"
             tgt_id_raw = tgt_id
 
@@ -387,6 +390,8 @@ async def get_comparisons(
             "target_student": tgt_display,
             "raw_source_id": src_id,
             "raw_target_id": tgt_id_raw,
+            "source_student_name": src_name,
+            "target_student_name": tgt_name,
             "score": float(c.similarity_score),
             "comparison_type": comp_type,
             "status": "High Risk" if c.similarity_score > 80 else "Review" if c.similarity_score > 60 else "Normal"

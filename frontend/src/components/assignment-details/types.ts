@@ -12,6 +12,8 @@ export interface AssignmentComparisonItem {
   id: string;
   source_student: string;
   target_student: string;
+  source_student_name?: string;
+  target_student_name?: string;
   score: number;
   comparison_type?: 'internal' | 'cross_repo' | string;
 }

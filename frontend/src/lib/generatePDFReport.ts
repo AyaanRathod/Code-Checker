@@ -6,11 +6,7 @@ import type {
   AssignmentMetrics,
   AssignmentSubmissionItem,
 } from '../components/assignment-details/types';
-import {
-  buildUniqueMatrixIds,
-  findComparisonPair,
-  formatBytes,
-} from '../components/assignment-details/assignmentDetailsUtils';
+import { formatBytes } from '../components/assignment-details/assignmentDetailsUtils';
 
 type Color = [number, number, number];
 
@@ -19,60 +15,25 @@ const PAGE_H = 297;
 const MARGIN = 14;
 const CONTENT_W = PAGE_W - MARGIN * 2;
 
-const PALETTE = {
-  primary: [153, 27, 27] as Color,
-  primaryDark: [110, 18, 18] as Color,
+const COLORS = {
+  brand: [153, 27, 27] as Color,
+  brandDark: [110, 18, 18] as Color,
   ink: [15, 23, 42] as Color,
   text: [51, 65, 85] as Color,
   muted: [100, 116, 139] as Color,
   line: [226, 232, 240] as Color,
   paper: [248, 250, 252] as Color,
-  white: [255, 255, 255] as Color,
   softBlue: [239, 246, 255] as Color,
-  softRose: [254, 242, 242] as Color,
-  softAmber: [255, 247, 237] as Color,
-  softGold: [254, 252, 232] as Color,
-  softGreen: [240, 253, 244] as Color,
-  softSlate: [241, 245, 249] as Color,
-};
-
-const RISK = {
-  high: [220, 38, 38] as Color,
-  highBg: [254, 242, 242] as Color,
-  medium: [234, 88, 12] as Color,
-  mediumBg: [255, 247, 237] as Color,
+  white: [255, 255, 255] as Color,
+  success: [22, 163, 74] as Color,
+  successBg: [240, 253, 244] as Color,
+  warning: [234, 88, 12] as Color,
+  warningBg: [255, 247, 237] as Color,
+  danger: [220, 38, 38] as Color,
+  dangerBg: [254, 242, 242] as Color,
   low: [161, 98, 7] as Color,
   lowBg: [254, 252, 232] as Color,
-  minimal: [22, 163, 74] as Color,
-  minimalBg: [240, 253, 244] as Color,
 };
-
-const DISTRIBUTION_COLORS = [
-  [22, 163, 74] as Color,
-  [132, 204, 22] as Color,
-  [234, 179, 8] as Color,
-  [249, 115, 22] as Color,
-  [220, 38, 38] as Color,
-];
-
-const STATUS_COLORS: Record<string, { fill: Color; text: Color }> = {
-  open: { fill: [100, 116, 139], text: PALETTE.white },
-  closed: { fill: [22, 163, 74], text: PALETTE.white },
-  archived: { fill: [124, 58, 237], text: PALETTE.white },
-  analyzing: { fill: [37, 99, 235], text: PALETTE.white },
-  default: { fill: [71, 85, 105], text: PALETTE.white },
-};
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'report';
-}
-
-function clamp(value: number, min = 0, max = 100): number {
-  return Math.max(min, Math.min(max, value));
-}
 
 function formatDateTime(iso?: string | null): string {
   if (!iso) return '-';
@@ -87,71 +48,77 @@ function formatDateTime(iso?: string | null): string {
   }).format(new Date(iso));
 }
 
-function formatPercent(value: number): string {
-  return `${value.toFixed(1)}%`;
+function truncate(doc: jsPDF, text: string, maxWidth: number): string {
+  const value = text.replace(/\s+/g, ' ').trim();
+  if (!value) return '-';
+  if (doc.getTextWidth(value) <= maxWidth) return value;
+
+  const ellipsis = '...';
+  let end = value.length;
+  while (end > 0 && doc.getTextWidth(`${value.slice(0, end).trimEnd()}${ellipsis}`) > maxWidth) {
+    end -= 1;
+  }
+  return `${value.slice(0, end).trimEnd()}${ellipsis}`;
 }
 
-function getStatusStyle(status: string): { fill: Color; text: Color; label: string } {
-  const key = status.toLowerCase();
+type ComparisonReportItem = AssignmentComparisonItem & {
+  source_student_name?: string;
+  target_student_name?: string;
+};
 
-  if (key.includes('archiv')) {
-    return { fill: STATUS_COLORS.archived.fill, text: STATUS_COLORS.archived.text, label: 'ARCHIVED' };
-  }
-
-  if (key.includes('analys')) {
-    return { fill: STATUS_COLORS.analyzing.fill, text: STATUS_COLORS.analyzing.text, label: 'ANALYZING' };
-  }
-
-  if (key.includes('close')) {
-    return { fill: STATUS_COLORS.closed.fill, text: STATUS_COLORS.closed.text, label: 'CLOSED' };
-  }
-
-  if (key.includes('open')) {
-    return { fill: STATUS_COLORS.open.fill, text: STATUS_COLORS.open.text, label: 'OPEN' };
-  }
-
-  return { fill: STATUS_COLORS.default.fill, text: STATUS_COLORS.default.text, label: key.toUpperCase() || 'STATUS' };
+function formatComparisonLabel(doc: jsPDF, comparison: ComparisonReportItem, maxWidth: number): string {
+  const separator = ' to ';
+  const sourceWidth = Math.max(6, Math.floor((maxWidth - separator.length * 2) / 2));
+  const targetWidth = Math.max(6, Math.floor((maxWidth - separator.length * 2) / 2));
+  const sourceLabel = comparison.source_student_name?.trim() || comparison.source_student;
+  const targetLabel = comparison.target_student_name?.trim() || comparison.target_student;
+  const source = truncate(doc, sourceLabel, sourceWidth);
+  const target = truncate(doc, targetLabel, targetWidth);
+  return `${source}${separator}${target}`;
 }
 
-function getRiskBand(score: number): { label: string; fill: Color; text: Color; soft: Color } {
-  if (score > 80) return { label: 'HIGH RISK', fill: RISK.high, text: PALETTE.white, soft: RISK.highBg };
-  if (score > 60) return { label: 'MEDIUM RISK', fill: RISK.medium, text: PALETTE.white, soft: RISK.mediumBg };
-  if (score > 40) return { label: 'LOW RISK', fill: RISK.low, text: PALETTE.white, soft: RISK.lowBg };
-  return { label: 'MINIMAL', fill: RISK.minimal, text: PALETTE.white, soft: RISK.minimalBg };
+function getRiskBand(score: number): { label: string; fill: Color; text: Color } {
+  if (score > 80) return { label: 'HIGH', fill: COLORS.dangerBg, text: COLORS.danger };
+  if (score > 60) return { label: 'MEDIUM', fill: COLORS.warningBg, text: COLORS.warning };
+  if (score > 40) return { label: 'LOW', fill: COLORS.lowBg, text: COLORS.low };
+  return { label: 'MINIMAL', fill: COLORS.successBg, text: COLORS.success };
 }
 
-function drawPill(doc: jsPDF, x: number, y: number, w: number, h: number, text: string, fill: Color, textColor: Color): void {
-  doc.setFillColor(...fill);
-  doc.roundedRect(x, y, w, h, h / 2, h / 2, 'F');
-  doc.setTextColor(...textColor);
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'bold');
-  doc.text(text, x + w / 2, y + h / 2 + 1.6, { align: 'center' });
-}
-
-function drawHeaderBand(doc: jsPDF, course: string, section: string): void {
-  doc.setFillColor(...PALETTE.primary);
+function drawHeader(doc: jsPDF, assignment: AssignmentDetailsModel, pageLabel: string): void {
+  doc.setFillColor(...COLORS.brand);
   doc.rect(0, 0, PAGE_W, 12, 'F');
+  doc.setFillColor(...COLORS.brandDark);
+  doc.rect(0, 0, PAGE_W, 3.5, 'F');
 
-  doc.setTextColor(...PALETTE.white);
-  doc.setFontSize(7.5);
+  doc.setTextColor(...COLORS.white);
   doc.setFont('helvetica', 'bold');
-  doc.text(course || 'Course', MARGIN, 7);
+  doc.setFontSize(7.6);
+  doc.text(assignment.course || 'Course', MARGIN, 7.2);
   doc.setFont('helvetica', 'normal');
-  doc.text(section, PAGE_W - MARGIN, 7, { align: 'right' });
+  doc.text(pageLabel, PAGE_W - MARGIN, 7.2, { align: 'right' });
 }
 
 function drawFooter(doc: jsPDF, pageNumber: number, totalPages: number): void {
-  doc.setDrawColor(...PALETTE.line);
+  doc.setDrawColor(...COLORS.line);
   doc.setLineWidth(0.25);
   doc.line(MARGIN, PAGE_H - 11, PAGE_W - MARGIN, PAGE_H - 11);
 
-  doc.setTextColor(...PALETTE.muted);
-  doc.setFontSize(6.5);
+  doc.setTextColor(...COLORS.muted);
+  doc.setFontSize(6.4);
   doc.setFont('helvetica', 'italic');
-  doc.text('CONFIDENTIAL - Academic integrity review only.', MARGIN, PAGE_H - 6);
+  doc.text('Full details remain available in the dashboard.', MARGIN, PAGE_H - 6);
   doc.setFont('helvetica', 'normal');
   doc.text(`Page ${pageNumber} of ${totalPages}`, PAGE_W - MARGIN, PAGE_H - 6, { align: 'right' });
+}
+
+function drawSectionTitle(doc: jsPDF, title: string, y: number): number {
+  doc.setTextColor(...COLORS.ink);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.8);
+  doc.text(title, MARGIN, y);
+  doc.setFillColor(...COLORS.brand);
+  doc.roundedRect(MARGIN, y + 2.2, 14, 1.5, 0.7, 0.7, 'F');
+  return y + 9;
 }
 
 function drawMetricCard(
@@ -163,64 +130,31 @@ function drawMetricCard(
   label: string,
   value: string,
   accent: Color,
-  note?: string,
 ): void {
-  doc.setFillColor(...PALETTE.white);
-  doc.setDrawColor(...PALETTE.line);
+  doc.setFillColor(...COLORS.white);
+  doc.setDrawColor(...COLORS.line);
   doc.setLineWidth(0.3);
   doc.roundedRect(x, y, w, h, 3, 3, 'FD');
-
   doc.setFillColor(...accent);
   doc.rect(x, y, w, 2, 'F');
 
   doc.setTextColor(...accent);
-  doc.setFontSize(17);
   doc.setFont('helvetica', 'bold');
-  doc.text(value, x + w / 2, y + 11, { align: 'center' });
-
-  doc.setTextColor(...PALETTE.muted);
-  doc.setFontSize(6.5);
+  doc.setFontSize(14.5);
+  doc.text(value, x + w / 2, y + 10.8, { align: 'center' });
+  doc.setTextColor(...COLORS.muted);
   doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.4);
   doc.text(label.toUpperCase(), x + w / 2, y + 18, { align: 'center' });
-
-  if (note) {
-    doc.setTextColor(...PALETTE.text);
-    doc.setFontSize(6.2);
-    const lines = doc.splitTextToSize(note, w - 6);
-    doc.text(lines, x + 3, y + 22);
-  }
 }
 
-function drawNotePanel(
-  doc: jsPDF,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  title: string,
-  body: string | string[],
-  accent: Color,
-  fill: Color = PALETTE.white,
-): void {
+function drawPill(doc: jsPDF, x: number, y: number, w: number, h: number, text: string, fill: Color, textColor: Color): void {
   doc.setFillColor(...fill);
-  doc.setDrawColor(...PALETTE.line);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(x, y, w, h, 3, 3, 'FD');
-  doc.setFillColor(...accent);
-  doc.rect(x, y, 3, h, 'F');
-
-  doc.setTextColor(...PALETTE.ink);
-  doc.setFontSize(10);
+  doc.roundedRect(x, y, w, h, h / 2, h / 2, 'F');
+  doc.setTextColor(...textColor);
   doc.setFont('helvetica', 'bold');
-  doc.text(title, x + 6, y + 8);
-
-  doc.setTextColor(...PALETTE.text);
-  doc.setFontSize(8.2);
-  doc.setFont('helvetica', 'normal');
-  const bodyLines = Array.isArray(body)
-    ? body.flatMap((line) => doc.splitTextToSize(line, w - 12))
-    : doc.splitTextToSize(body, w - 12);
-  doc.text(bodyLines, x + 6, y + 15);
+  doc.setFontSize(7);
+  doc.text(text, x + w / 2, y + h / 2 + 1.5, { align: 'center' });
 }
 
 function drawDistributionBar(
@@ -229,466 +163,311 @@ function drawDistributionBar(
   y: number,
   w: number,
   counts: number[],
-): number {
+): void {
   const total = counts.reduce((sum, count) => sum + count, 0) || 1;
+  const colors = [COLORS.success, [132, 204, 22] as Color, [234, 179, 8] as Color, [249, 115, 22] as Color, COLORS.danger];
   const labels = ['0-19', '20-39', '40-59', '60-79', '80-100'];
 
-  doc.setFillColor(...PALETTE.paper);
-  doc.setDrawColor(...PALETTE.line);
+  doc.setFillColor(...COLORS.paper);
+  doc.setDrawColor(...COLORS.line);
   doc.setLineWidth(0.3);
-  doc.roundedRect(x, y, w, 10, 2, 2, 'FD');
+  doc.roundedRect(x, y, w, 9, 2, 2, 'FD');
 
-  let offset = x;
+  let currentX = x;
   counts.forEach((count, index) => {
     const segmentWidth = (count / total) * w;
     if (segmentWidth > 0) {
-      doc.setFillColor(...DISTRIBUTION_COLORS[index]);
-      doc.rect(offset, y, segmentWidth, 10, 'F');
-      offset += segmentWidth;
+      doc.setFillColor(...colors[index]);
+      doc.rect(currentX, y, segmentWidth, 9, 'F');
+      currentX += segmentWidth;
     }
   });
 
   let legendX = x;
   counts.forEach((count, index) => {
     const segmentWidth = w / counts.length;
-    const pct = ((count / total) * 100).toFixed(0);
-    doc.setFillColor(...DISTRIBUTION_COLORS[index]);
-    doc.roundedRect(legendX, y + 13, 3.5, 3.5, 0.7, 0.7, 'F');
-    doc.setTextColor(...PALETTE.text);
-    doc.setFontSize(6.5);
+    doc.setFillColor(...colors[index]);
+    doc.roundedRect(legendX, y + 12, 3.2, 3.2, 0.5, 0.5, 'F');
+    doc.setTextColor(...COLORS.text);
+    doc.setFontSize(6.2);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${labels[index]}: ${count} (${pct}%)`, legendX + 5.5, y + 16);
+    doc.text(`${labels[index]}: ${count}`, legendX + 4.8, y + 14.5);
     legendX += segmentWidth;
   });
-
-  return y + 22;
 }
 
-function drawTopFindingCard(
+function drawFindingRow(
   doc: jsPDF,
   x: number,
   y: number,
   w: number,
-  h: number,
   rank: number,
-  item: AssignmentComparisonItem,
-): void {
-  const band = getRiskBand(item.score);
-  const typeLabel = item.comparison_type === 'cross_repo' ? 'Cross Repo' : 'Internal';
-
-  doc.setFillColor(...PALETTE.white);
-  doc.setDrawColor(...PALETTE.line);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(x, y, w, h, 3, 3, 'FD');
-  doc.setFillColor(...band.soft);
-  doc.rect(x, y, w, 4, 'F');
-
-  doc.setFillColor(...PALETTE.primary);
-  doc.roundedRect(x + 4, y + 6, 11, 11, 2, 2, 'F');
-  doc.setTextColor(...PALETTE.white);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
-  doc.text(String(rank), x + 9.5, y + 13, { align: 'center' });
-
-  doc.setTextColor(...PALETTE.ink);
-  doc.setFontSize(10.5);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`${item.source_student} to ${item.target_student}`, x + 19, y + 11);
-
-  doc.setTextColor(...band.fill);
-  doc.setFontSize(15);
-  doc.text(formatPercent(item.score), x + w - 6, y + 12, { align: 'right' });
-
-  drawPill(doc, x + 19, y + 15.5, 28, 6, typeLabel, band.fill, band.text);
-  drawPill(doc, x + 49, y + 15.5, 30, 6, band.label, band.fill, band.text);
-
-  doc.setFillColor(...PALETTE.softSlate);
-  doc.roundedRect(x + 19, y + h - 6, w - 24, 2.4, 1, 1, 'F');
+  comparison: ComparisonReportItem,
+): number {
+  const band = getRiskBand(comparison.score);
+  const rowH = 8.5;
+  doc.setFillColor(...COLORS.white);
+  doc.setDrawColor(...COLORS.line);
+  doc.setLineWidth(0.25);
+  doc.roundedRect(x, y, w, rowH, 2.5, 2.5, 'FD');
   doc.setFillColor(...band.fill);
-  doc.roundedRect(x + 19, y + h - 6, clamp((w - 24) * (item.score / 100), 0, w - 24), 2.4, 1, 1, 'F');
-}
+  doc.rect(x, y, 3, rowH, 'F');
 
-function drawHeatmapPage(
-  doc: jsPDF,
-  course: string,
-  assignmentTitle: string,
-  comparisons: AssignmentComparisonItem[],
-  matrixIds: string[],
-): void {
-  drawHeaderBand(doc, course, 'Similarity Map');
-
-  doc.setTextColor(...PALETTE.ink);
-  doc.setFontSize(15);
+  const pair = formatComparisonLabel(doc, comparison, 40);
+  doc.setTextColor(...COLORS.ink);
   doc.setFont('helvetica', 'bold');
-  doc.text('Similarity Map', MARGIN, 22);
+  doc.setFontSize(8.6);
+  doc.text(`${rank}. ${pair}`, x + 5, y + 5.5);
 
-  doc.setTextColor(...PALETTE.text);
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'normal');
-  const subtitle = `Printed relationship map for ${assignmentTitle}. Red cells indicate the strongest similarity, while pale cells indicate no recorded comparison.`;
-  const subtitleLines = doc.splitTextToSize(subtitle, CONTENT_W);
-  doc.text(subtitleLines, MARGIN, 29);
+  doc.setTextColor(...band.text);
+  doc.setFontSize(10);
+  doc.text(`${comparison.score.toFixed(1)}%`, x + w - 42, y + 5.5, { align: 'right' });
 
-  const topY = 38 + subtitleLines.length * 4;
-  const n = matrixIds.length;
-  const cellSize = clamp(Math.floor((CONTENT_W - 10) / (n + 1)), 5, 11);
-  const originX = MARGIN + cellSize + 2;
-  const originY = topY + 8;
-
-  doc.setTextColor(...PALETTE.muted);
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'italic');
-  doc.text('Diagonal cells are self references and are intentionally neutral.', MARGIN, topY);
-
-  matrixIds.forEach((id, index) => {
-    doc.setTextColor(...PALETTE.ink);
-    doc.setFontSize(5.5);
-    doc.setFont('helvetica', 'bold');
-    doc.text(id.slice(-4), originX + index * cellSize + cellSize / 2, originY - 2, { align: 'center' });
-    doc.text(id.slice(-4), originX - 2, originY + index * cellSize + cellSize / 2 + 1.6, { align: 'right' });
-  });
-
-  matrixIds.forEach((rowId, rowIndex) => {
-    matrixIds.forEach((colId, colIndex) => {
-      const x = originX + colIndex * cellSize;
-      const y = originY + rowIndex * cellSize;
-
-      if (rowId === colId) {
-        doc.setFillColor(215, 219, 224);
-      } else {
-        const pair = findComparisonPair(comparisons, rowId, colId);
-        const score = pair?.score || 0;
-
-        if (score === 0) {
-          doc.setFillColor(245, 247, 250);
-        } else {
-          const band = getRiskBand(score);
-          const blend = 0.3 + (score / 100) * 0.7;
-          doc.setFillColor(
-            Math.round(255 - (255 - band.fill[0]) * blend),
-            Math.round(255 - (255 - band.fill[1]) * blend),
-            Math.round(255 - (255 - band.fill[2]) * blend),
-          );
-        }
-      }
-
-      doc.rect(x, y, cellSize, cellSize, 'F');
-      doc.setDrawColor(220, 224, 230);
-      doc.setLineWidth(0.15);
-      doc.rect(x, y, cellSize, cellSize, 'S');
-
-      if (rowId !== colId) {
-        const pair = findComparisonPair(comparisons, rowId, colId);
-        const score = pair?.score || 0;
-        if (score > 0 && cellSize >= 8) {
-          doc.setTextColor(score > 60 ? 255 : 50, score > 60 ? 255 : 50, score > 60 ? 255 : 50);
-          doc.setFontSize(4.5);
-          doc.setFont('helvetica', 'bold');
-          doc.text(String(Math.round(score)), x + cellSize / 2, y + cellSize / 2 + 1.5, { align: 'center' });
-        }
-      }
-    });
-  });
-
-  const legendY = originY + n * cellSize + 10;
-  const legendItems = [
-    { label: 'High risk', color: RISK.high },
-    { label: 'Medium', color: RISK.medium },
-    { label: 'Low', color: RISK.low },
-    { label: 'Minimal', color: RISK.minimal },
-    { label: 'No comparison', color: [220, 224, 230] as Color },
-  ];
-
-  let legendX = MARGIN;
-  legendItems.forEach((item) => {
-    doc.setFillColor(...item.color);
-    doc.roundedRect(legendX, legendY, 5, 3.5, 0.5, 0.5, 'F');
-    doc.setTextColor(...PALETTE.text);
-    doc.setFontSize(6.5);
-    doc.setFont('helvetica', 'normal');
-    doc.text(item.label, legendX + 7, legendY + 2.8);
-    legendX += 38;
-  });
+  const typeText = comparison.comparison_type === 'cross_repo' ? 'CROSS-REPO' : 'INTERNAL';
+  drawPill(doc, x + w - 36, y + 1.5, 16, 5.5, typeText, COLORS.softBlue, COLORS.brand);
+  drawPill(doc, x + w - 18, y + 1.5, 16, 5.5, band.label, band.fill, band.text);
+  return y + rowH + 2.5;
 }
 
 export function generatePDFReport(
   assignment: AssignmentDetailsModel,
   submissions: AssignmentSubmissionItem[],
-  comparisons: AssignmentComparisonItem[],
+  comparisons: ComparisonReportItem[],
   metrics: AssignmentMetrics,
   instructorName: string,
 ) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const reportDate = new Date();
+  const now = new Date();
+  const totalComparisons = metrics.total || comparisons.length;
+  const averageScore = metrics.avg || 0;
+  const highRiskCount = metrics.highRisk || comparisons.filter((comparison) => comparison.score > 80).length;
+  const reviewCount = metrics.reviews || comparisons.filter((comparison) => comparison.score > 60 && comparison.score <= 80).length;
+  const maxScore = comparisons.reduce((max, comparison) => Math.max(max, comparison.score), 0);
+  const topComparisons = [...comparisons].sort((a, b) => b.score - a.score).slice(0, 4);
+  const topSubmissions = [...submissions]
+    .sort((a, b) => (b.attempt_number - a.attempt_number) || ((new Date(b.timestamp || 0).getTime()) - (new Date(a.timestamp || 0).getTime())))
+    .slice(0, 4);
+  const generatedAt = formatDateTime(now.toISOString());
+  const fileName = `integrity-report-${(assignment.course || 'course').replace(/\s+/g, '-').toLowerCase()}-${(assignment.title || 'assignment').replace(/\s+/g, '-').toLowerCase()}-${now.toISOString().slice(0, 10)}.pdf`;
+  const summary = `This report condenses ${totalComparisons} comparison pair(s) across ${submissions.length} submission(s) into a two-page brief. It highlights the highest-risk pairs, the average similarity, and the latest submission snapshot.`;
 
-  const sortedComparisons = [...comparisons].sort((a, b) => b.score - a.score);
-  const totalComparisons = comparisons.length;
-  const highRisk = comparisons.filter((comparison) => comparison.score > 80);
-  const mediumRisk = comparisons.filter((comparison) => comparison.score > 60 && comparison.score <= 80);
-  const lowRisk = comparisons.filter((comparison) => comparison.score > 40 && comparison.score <= 60);
-  const minimalRisk = comparisons.filter((comparison) => comparison.score <= 40);
-  const reviewBand = mediumRisk.length;
-  const uniqueStudents = new Set(comparisons.flatMap((comparison) => [comparison.source_student, comparison.target_student])).size;
-  const crossRepoCount = comparisons.filter((comparison) => comparison.comparison_type === 'cross_repo').length;
-  const flaggedSubmissions = submissions.filter((submission) => submission.is_flagged || submission.status.toLowerCase().includes('flag')).length;
-  const totalLines = submissions.reduce((sum, submission) => sum + submission.total_lines, 0);
-  const totalBytes = submissions.reduce((sum, submission) => sum + submission.total_bytes, 0);
-
-  const distribution = [0, 0, 0, 0, 0];
-  comparisons.forEach((comparison) => {
-    if (comparison.score < 20) distribution[0] += 1;
-    else if (comparison.score < 40) distribution[1] += 1;
-    else if (comparison.score < 60) distribution[2] += 1;
-    else if (comparison.score < 80) distribution[3] += 1;
-    else distribution[4] += 1;
+  doc.setProperties({
+    title: `Academic Integrity Report - ${assignment.title}`,
+    subject: 'Compact academic integrity report',
+    author: instructorName || 'Brock University',
+    creator: 'Code Checker',
   });
 
-  const averageScore = totalComparisons
-    ? comparisons.reduce((sum, comparison) => sum + comparison.score, 0) / totalComparisons
-    : metrics.avg;
+  // Page 1: overview
+  drawHeader(doc, assignment, 'Report Summary');
 
-  const topFindings = sortedComparisons.slice(0, 4);
-  const courseLabel = assignment.course || 'Course';
-  const assignmentLabel = assignment.title || 'Assignment';
-  const statusStyle = getStatusStyle(assignment.status || '');
-  const fileName = `code-checker-report-${slugify(courseLabel)}-${slugify(assignmentLabel)}-${reportDate.toISOString().slice(0, 10)}.pdf`;
-
-  // Cover page
-  doc.setFillColor(...PALETTE.primary);
-  doc.rect(0, 0, PAGE_W, 34, 'F');
-  doc.setFillColor(...PALETTE.primaryDark);
-  doc.rect(0, 0, PAGE_W, 6, 'F');
-
-  doc.setTextColor(...PALETTE.white);
-  doc.setFontSize(9);
+  let y = 20;
+  doc.setTextColor(...COLORS.ink);
   doc.setFont('helvetica', 'bold');
-  doc.setCharSpace(1.5);
-  doc.text('ACADEMIC INTEGRITY REPORT', MARGIN, 20);
-  doc.setCharSpace(0);
+  doc.setFontSize(18);
+  doc.text(truncate(doc, assignment.title, CONTENT_W - 42), MARGIN, y + 4);
+
+  doc.setTextColor(...COLORS.muted);
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
-  doc.text(formatDateTime(reportDate.toISOString()), PAGE_W - MARGIN, 12, { align: 'right' });
-  doc.text('Print edition of the analysis dashboard', PAGE_W - MARGIN, 20, { align: 'right' });
+  doc.text(`Generated ${generatedAt}`, PAGE_W - MARGIN, y + 2, { align: 'right' });
+  drawPill(doc, PAGE_W - MARGIN - 26, y + 6, 26, 6, (assignment.status || 'STATUS').toUpperCase(), getRiskBand(assignment.status === 'Archived' ? 0 : 1).fill, COLORS.text);
 
-  doc.setFillColor(...PALETTE.white);
-  doc.setDrawColor(...PALETTE.line);
+  y += 14;
+  const cardW = (CONTENT_W - 9) / 4;
+  drawMetricCard(doc, MARGIN, y, cardW, 22, 'Submissions', String(submissions.length), COLORS.brand);
+  drawMetricCard(doc, MARGIN + cardW + 3, y, cardW, 22, 'High risk', String(highRiskCount), COLORS.danger);
+  drawMetricCard(doc, MARGIN + (cardW + 3) * 2, y, cardW, 22, 'Average', `${averageScore.toFixed(1)}%`, COLORS.warning);
+  drawMetricCard(doc, MARGIN + (cardW + 3) * 3, y, cardW, 22, 'Max', `${maxScore.toFixed(1)}%`, COLORS.success);
+
+  y += 30;
+  doc.setFillColor(...COLORS.paper);
+  doc.setDrawColor(...COLORS.line);
   doc.setLineWidth(0.3);
-  doc.roundedRect(MARGIN, 22, CONTENT_W, 100, 4, 4, 'FD');
-  doc.setFillColor(...PALETTE.primary);
-  doc.rect(MARGIN, 22, 4, 100, 'F');
-
-  doc.setTextColor(...PALETTE.ink);
-  doc.setFontSize(8);
+  doc.roundedRect(MARGIN, y, CONTENT_W, 20, 3, 3, 'FD');
+  doc.setFillColor(...COLORS.brand);
+  doc.rect(MARGIN, y, 3, 20, 'F');
+  doc.setTextColor(...COLORS.ink);
   doc.setFont('helvetica', 'bold');
-  doc.text(courseLabel.toUpperCase(), MARGIN + 8, 35);
-  drawPill(doc, MARGIN + 8, 39, 30, 8, statusStyle.label, statusStyle.fill, statusStyle.text);
-  drawPill(doc, MARGIN + 40, 39, 28, 8, `${totalComparisons} PAIRS`, PALETTE.softBlue, PALETTE.primary);
-
-  doc.setTextColor(...PALETTE.ink);
-  doc.setFontSize(24);
-  doc.setFont('helvetica', 'bold');
-  const titleLines = doc.splitTextToSize(assignmentLabel, CONTENT_W - 16);
-  doc.text(titleLines, MARGIN + 8, 55);
-
-  doc.setTextColor(...PALETTE.text);
-  doc.setFontSize(9.5);
+  doc.setFontSize(10.5);
+  doc.text('Key summary', MARGIN + 6, y + 6.5);
+  doc.setTextColor(...COLORS.text);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Prepared for ${instructorName}`, MARGIN + 8, 55 + titleLines.length * 9 + 4);
+  doc.setFontSize(8.3);
+  doc.text(doc.splitTextToSize(summary, CONTENT_W - 12), MARGIN + 6, y + 12);
 
-  const coverNote = [
-    `This report turns the live analysis view into a print-first document.`,
-    `It foregrounds ranked concerns, concise interpretation, and a preserved evidence trail.`,
-    `The layout is intentionally editorial: a cover, an executive brief, and an archive.`,
-  ].join(' ');
-  const coverNoteLines = doc.splitTextToSize(coverNote, 86);
-  doc.setFillColor(...PALETTE.paper);
-  doc.setDrawColor(...PALETTE.line);
-  doc.roundedRect(PAGE_W - MARGIN - 88, 34, 80, 62, 3, 3, 'FD');
-  doc.setFillColor(...PALETTE.softRose);
-  doc.rect(PAGE_W - MARGIN - 88, 34, 80, 4, 'F');
-  doc.setTextColor(...PALETTE.ink);
-  doc.setFontSize(10);
+  y += 28;
+  doc.setTextColor(...COLORS.ink);
   doc.setFont('helvetica', 'bold');
-  doc.text('Report intent', PAGE_W - MARGIN - 82, 45);
-  doc.setTextColor(...PALETTE.text);
-  doc.setFontSize(8.2);
-  doc.setFont('helvetica', 'normal');
-  doc.text(coverNoteLines, PAGE_W - MARGIN - 82, 52);
+  doc.setFontSize(10.8);
+  doc.text('Risk spread', MARGIN, y);
+  y += 5;
+  drawDistributionBar(doc, MARGIN, y, CONTENT_W, metrics.distribution || [0, 0, 0, 0, 0]);
 
-  const coverMetricsY = 128;
-  const coverCardW = (CONTENT_W - 9) / 4;
-  drawMetricCard(doc, MARGIN, coverMetricsY, coverCardW, 23, 'Submissions', String(submissions.length), [59, 130, 246]);
-  drawMetricCard(doc, MARGIN + coverCardW + 3, coverMetricsY, coverCardW, 23, 'Pairs', String(totalComparisons), PALETTE.primary);
-  drawMetricCard(doc, MARGIN + (coverCardW + 3) * 2, coverMetricsY, coverCardW, 23, 'High risk', String(highRisk.length), RISK.high);
-  drawMetricCard(doc, MARGIN + (coverCardW + 3) * 3, coverMetricsY, coverCardW, 23, 'Average', formatPercent(averageScore), RISK.medium);
-
-  doc.setFillColor(...PALETTE.white);
-  doc.setDrawColor(...PALETTE.line);
-  doc.roundedRect(MARGIN, 157, CONTENT_W, 32, 3, 3, 'FD');
-  doc.setFillColor(...PALETTE.primary);
-  doc.rect(MARGIN, 157, 3, 32, 'F');
-  doc.setTextColor(...PALETTE.ink);
-  doc.setFontSize(11);
+  y += 30;
+  doc.setTextColor(...COLORS.ink);
   doc.setFont('helvetica', 'bold');
-  doc.text('Executive abstract', MARGIN + 6, 166);
-  doc.setTextColor(...PALETTE.text);
-  doc.setFontSize(8.6);
-  doc.setFont('helvetica', 'normal');
-  const coverAbstract = `The analysis covers ${totalComparisons} comparison pairs and ${submissions.length} submissions. ${highRisk.length} pair(s) exceed the 80% threshold, ${reviewBand} sit in the review band, and the average similarity score is ${formatPercent(averageScore)}. The document that follows explains what matters first, then preserves the supporting archive in a clean appendix.`;
-  const coverAbstractLines = doc.splitTextToSize(coverAbstract, CONTENT_W - 14);
-  doc.text(coverAbstractLines, MARGIN + 6, 174);
+  doc.setFontSize(10.8);
+  doc.text('Top findings', MARGIN, y);
+  y += 5;
+  if (topComparisons.length > 0) {
+    topComparisons.forEach((comparison, index) => {
+      y = drawFindingRow(doc, MARGIN, y, CONTENT_W, index + 1, comparison);
+    });
+  } else {
+    doc.setFillColor(...COLORS.paper);
+    doc.setDrawColor(...COLORS.line);
+    doc.roundedRect(MARGIN, y, CONTENT_W, 10, 2, 2, 'FD');
+    doc.setTextColor(...COLORS.muted);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.text('No comparison data available.', PAGE_W / 2, y + 6.4, { align: 'center' });
+    y += 12;
+  }
 
-  // Executive brief
+  doc.setTextColor(...COLORS.muted);
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(6.8);
+  doc.text(`Showing only the most important comparisons to keep this report concise.`, MARGIN, 236);
+
+  // Page 2: compact evidence snapshot
   doc.addPage();
-  drawHeaderBand(doc, courseLabel, 'Executive Brief');
-  const executiveSubtitle = `A curated reading of the dashboard. This section prioritizes patterns, severity, and next steps over raw data density.`;
-  doc.setTextColor(...PALETTE.ink);
-  doc.setFontSize(15);
+  drawHeader(doc, assignment, 'Evidence Snapshot');
+
+  doc.setTextColor(...COLORS.ink);
   doc.setFont('helvetica', 'bold');
-  doc.text('Executive Brief', MARGIN, 22);
-  doc.setTextColor(...PALETTE.text);
-  doc.setFontSize(8.5);
+  doc.setFontSize(13.2);
+  doc.text('Evidence snapshot', MARGIN, 22);
+  doc.setTextColor(...COLORS.text);
   doc.setFont('helvetica', 'normal');
-  const executiveSubtitleLines = doc.splitTextToSize(executiveSubtitle, CONTENT_W);
-  doc.text(executiveSubtitleLines, MARGIN, 29);
+  doc.setFontSize(8.2);
+  doc.text('Only the most relevant rows are shown here. The dashboard contains the full record set.', MARGIN, 28);
 
-  const briefMetricY = 38 + executiveSubtitleLines.length * 4;
-  const briefMetricW = (CONTENT_W - 9) / 4;
-  drawMetricCard(doc, MARGIN, briefMetricY, briefMetricW, 22, 'Submissions', String(submissions.length), [59, 130, 246]);
-  drawMetricCard(doc, MARGIN + briefMetricW + 3, briefMetricY, briefMetricW, 22, 'Unique students', String(uniqueStudents || submissions.length), [15, 23, 42]);
-  drawMetricCard(doc, MARGIN + (briefMetricW + 3) * 2, briefMetricY, briefMetricW, 22, 'High risk', String(highRisk.length), RISK.high);
-  drawMetricCard(doc, MARGIN + (briefMetricW + 3) * 3, briefMetricY, briefMetricW, 22, 'Average', formatPercent(averageScore), RISK.medium);
-
-  const narrativeBody = `The report shows ${totalComparisons} pairwise comparison(s) across ${uniqueStudents || submissions.length} unique student identifier(s). ${highRisk.length} pair(s) are above the 80% similarity threshold and warrant immediate review. ${reviewBand} additional pair(s) fall into the 61-80% review band, while ${minimalRisk.length} pair(s) remain at or below the minimal threshold. ${crossRepoCount} cross-repository comparison(s) were included in the analysis, which helps identify similarities that might not appear inside a single repository.`;
-  const narrativeY = briefMetricY + 30;
-  drawNotePanel(doc, MARGIN, narrativeY, 117, 38, 'What the numbers say', narrativeBody, PALETTE.primary);
-
-  const actionBody = [
-    `- Inspect the ranked pair cards below, starting with the highest score.`,
-    `- Compare source and target repositories side by side before making a decision.`,
-    `- Archive supporting evidence for any pair above the review threshold.`,
-  ];
-  drawNotePanel(doc, MARGIN + 121, narrativeY, 75, 38, 'Immediate actions', actionBody, RISK.medium);
-
-  const distY = narrativeY + 44;
-  doc.setTextColor(...PALETTE.ink);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Similarity distribution', MARGIN, distY);
-  doc.setTextColor(...PALETTE.text);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.text('A compact score spectrum for the comparison set.', MARGIN, distY + 6);
-  drawDistributionBar(doc, MARGIN, distY + 10, CONTENT_W, distribution);
-
-  const topY = distY + 34;
-  doc.setTextColor(...PALETTE.ink);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Priority findings', MARGIN, topY);
-  doc.setTextColor(...PALETTE.text);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.text('The most important comparisons are shown as ranked cards instead of a plain spreadsheet dump.', MARGIN, topY + 6);
-
-  const findingCount = Math.min(topFindings.length, 4);
-  const cardHeight = findingCount >= 4 ? 21 : 22;
-  const cardGap = 3;
-  const cardWidth = CONTENT_W;
-  let cardY = topY + 10;
-  topFindings.forEach((finding, index) => {
-    drawTopFindingCard(doc, MARGIN, cardY + index * (cardHeight + cardGap), cardWidth, cardHeight, index + 1, finding);
+  const comparisonRows = topComparisons.map((comparison, index) => {
+    const risk = getRiskBand(comparison.score);
+    return [
+      String(index + 1),
+      formatComparisonLabel(doc, comparison, 62),
+      `${comparison.score.toFixed(1)}%`,
+      risk.label,
+      comparison.comparison_type === 'cross_repo' ? 'Cross-Repo' : 'Internal',
+    ];
   });
 
-  // Submission archive
-  doc.addPage();
-  drawHeaderBand(doc, courseLabel, 'Submission Archive');
-  doc.setTextColor(...PALETTE.ink);
-  doc.setFontSize(15);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Submission Archive', MARGIN, 22);
-  doc.setTextColor(...PALETTE.text);
-  doc.setFontSize(8.5);
-  doc.setFont('helvetica', 'normal');
-  const archiveSubtitle = 'A compact evidence ledger for the submitted files, attempts, and flag state. This is the printable counterpart to the dashboard list view.';
-  const archiveSubtitleLines = doc.splitTextToSize(archiveSubtitle, CONTENT_W);
-  doc.text(archiveSubtitleLines, MARGIN, 29);
-
-  const archiveCardY = 38 + archiveSubtitleLines.length * 4;
-  const archiveCardW = (CONTENT_W - 9) / 4;
-  drawMetricCard(doc, MARGIN, archiveCardY, archiveCardW, 22, 'Entries', String(submissions.length), [59, 130, 246]);
-  drawMetricCard(doc, MARGIN + archiveCardW + 3, archiveCardY, archiveCardW, 22, 'Flagged', String(flaggedSubmissions), RISK.high);
-  drawMetricCard(doc, MARGIN + (archiveCardW + 3) * 2, archiveCardY, archiveCardW, 22, 'Lines', String(totalLines), [15, 23, 42]);
-  drawMetricCard(doc, MARGIN + (archiveCardW + 3) * 3, archiveCardY, archiveCardW, 22, 'Size', formatBytes(totalBytes), RISK.low);
-
-  const archiveStartY = archiveCardY + 28;
   autoTable(doc, {
-    startY: archiveStartY,
-    margin: { top: 30, left: MARGIN, right: MARGIN, bottom: 18 },
-    head: [['#', 'Masked ID', 'Submitted', 'Attempt', 'Files', 'Lines', 'Size', 'Status']],
-    body: submissions.map((submission, index) => [
-      String(index + 1),
-      submission.masked_student_id,
-      formatDateTime(submission.timestamp),
-      String(submission.attempt_number),
-      String(submission.file_count),
-      String(submission.total_lines),
-      formatBytes(submission.total_bytes),
-      submission.status,
-    ]),
+    startY: 34,
+    margin: { left: MARGIN, right: MARGIN },
+    pageBreak: 'avoid',
+    rowPageBreak: 'avoid',
+    head: [['#', 'Top comparison pairs', 'Score', 'Risk', 'Type']],
+    body: comparisonRows,
     styles: {
-      fontSize: 7.4,
-      cellPadding: 2.6,
-      textColor: PALETTE.text,
-      lineColor: PALETTE.line,
+      fontSize: 7.2,
+      cellPadding: 2.1,
+      textColor: COLORS.text,
+      lineColor: COLORS.line,
       lineWidth: 0.15,
+      overflow: 'ellipsize',
     },
     headStyles: {
-      fillColor: PALETTE.primary,
-      textColor: PALETTE.white,
+      fillColor: COLORS.brand,
+      textColor: COLORS.white,
       fontStyle: 'bold',
-      fontSize: 7.4,
+      fontSize: 7.2,
     },
     alternateRowStyles: {
-      fillColor: PALETTE.paper,
+      fillColor: COLORS.paper,
     },
     columnStyles: {
       0: { cellWidth: 8, halign: 'center' },
-      1: { cellWidth: 30, fontStyle: 'bold' },
-      2: { cellWidth: 36 },
-      3: { cellWidth: 14, halign: 'center' },
-      4: { cellWidth: 12, halign: 'center' },
-      5: { cellWidth: 16, halign: 'center' },
-      6: { cellWidth: 18, halign: 'right' },
-      7: { cellWidth: 22, halign: 'center' },
+      1: { cellWidth: 74, fontStyle: 'bold' },
+      2: { cellWidth: 20, halign: 'center' },
+      3: { cellWidth: 26, halign: 'center', fontStyle: 'bold' },
+      4: { cellWidth: 32, halign: 'center' },
     },
     didParseCell: (data) => {
-      if (data.section === 'body' && data.column.index === 7) {
-        const status = String(data.cell.raw);
-        const isFlagged = /flag/i.test(status);
-        data.cell.styles.textColor = isFlagged ? RISK.high : PALETTE.text;
-        data.cell.styles.fontStyle = 'bold';
+      if (data.section === 'body' && data.column.index === 3) {
+        const risk = String(data.cell.raw);
+        if (risk === 'HIGH') data.cell.styles.textColor = COLORS.danger;
+        else if (risk === 'MEDIUM') data.cell.styles.textColor = COLORS.warning;
+        else if (risk === 'LOW') data.cell.styles.textColor = COLORS.low;
+        else data.cell.styles.textColor = COLORS.success;
       }
-    },
-    didDrawPage: () => {
-      drawHeaderBand(doc, courseLabel, 'Submission Archive');
-      doc.setTextColor(...PALETTE.ink);
-      doc.setFontSize(15);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Submission Archive', MARGIN, 22);
-      doc.setTextColor(...PALETTE.text);
-      doc.setFontSize(8.5);
-      doc.setFont('helvetica', 'normal');
-      doc.text('A printable evidence ledger for the submission set.', MARGIN, 29);
     },
   });
 
-  // Similarity map page
-  const matrixIds = buildUniqueMatrixIds(comparisons);
-  if (matrixIds.length >= 2 && matrixIds.length <= 30) {
-    doc.addPage();
-    drawHeatmapPage(doc, courseLabel, assignmentLabel, comparisons, matrixIds);
-  }
+  const afterComparisonTable = ((doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY || 60) + 8;
+  doc.setTextColor(...COLORS.muted);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.4);
+  doc.text(`Showing the top ${topComparisons.length} of ${totalComparisons} pair(s).`, PAGE_W - MARGIN, afterComparisonTable - 2, { align: 'right' });
+
+  const submissionRows = topSubmissions.map((submission, index) => [
+    String(index + 1),
+    submission.masked_student_id,
+    String(submission.attempt_number),
+    String(submission.file_count),
+    String(submission.total_lines),
+    formatBytes(submission.total_bytes),
+    submission.status,
+  ]);
+
+  doc.setTextColor(...COLORS.ink);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.8);
+  doc.text('Submission snapshot', MARGIN, afterComparisonTable + 4);
+  doc.setTextColor(...COLORS.muted);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.text('Newest or highest-attempt submissions only.', MARGIN, afterComparisonTable + 9);
+
+  autoTable(doc, {
+    startY: afterComparisonTable + 12,
+    margin: { left: MARGIN, right: MARGIN },
+    pageBreak: 'avoid',
+    rowPageBreak: 'avoid',
+    head: [['#', 'Masked ID', 'Attempt', 'Files', 'Lines', 'Size', 'Status']],
+    body: submissionRows,
+    styles: {
+      fontSize: 7.1,
+      cellPadding: 2.1,
+      textColor: COLORS.text,
+      lineColor: COLORS.line,
+      lineWidth: 0.15,
+      overflow: 'ellipsize',
+    },
+    headStyles: {
+      fillColor: COLORS.brand,
+      textColor: COLORS.white,
+      fontStyle: 'bold',
+      fontSize: 7.1,
+    },
+    alternateRowStyles: {
+      fillColor: COLORS.paper,
+    },
+    columnStyles: {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 52, fontStyle: 'bold' },
+      2: { cellWidth: 16, halign: 'center' },
+      3: { cellWidth: 14, halign: 'center' },
+      4: { cellWidth: 18, halign: 'center' },
+      5: { cellWidth: 22, halign: 'right' },
+      6: { cellWidth: 28, halign: 'center' },
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.column.index === 6) {
+        const status = String(data.cell.raw).toLowerCase();
+        if (status.includes('flag')) data.cell.styles.textColor = COLORS.danger;
+        else if (status.includes('active')) data.cell.styles.textColor = COLORS.success;
+      }
+    },
+  });
+
+  doc.setTextColor(...COLORS.muted);
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(7.2);
+  doc.text(`Showing the top ${topSubmissions.length} of ${submissions.length} submission record(s).`, MARGIN, 244);
+  doc.text(`This PDF is intentionally capped at two pages for quick review.`, MARGIN, 248);
 
   const totalPages = doc.internal.pages.length - 1;
   for (let page = 1; page <= totalPages; page += 1) {

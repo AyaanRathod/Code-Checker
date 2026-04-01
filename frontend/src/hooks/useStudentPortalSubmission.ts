@@ -3,10 +3,10 @@ import apiClient from '../lib/apiClient';
 import { useFileDrop } from './useFileDrop';
 import {
   ACCEPTED_UPLOAD,
-  buildReceiptText,
   extractPreviewFilesFromUpload,
   formatTorontoTimestamp,
 } from '../components/student-portal/studentPortalUtils';
+import { buildSubmissionReceiptPdf } from '../components/student-portal/submissionReceiptPdf';
 import type {
   PreviewFile,
   StudentSubmissionFormState,
@@ -91,14 +91,9 @@ export const useStudentPortalSubmission = () => {
   const saveReceipt = useCallback(() => {
     if (!successData) return;
 
-    const receipt = buildReceiptText(successData);
-    const blob = new Blob([receipt], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `receipt_${(successData.submission_id || 'unknown').slice(0, 8)}.txt`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    const doc = buildSubmissionReceiptPdf(successData);
+    const receiptId = (successData.submission_id || 'unknown').slice(0, 8);
+    doc.save(`receipt_${receiptId}.pdf`);
   }, [successData]);
 
   const showZipNoValidFilesWarning = useMemo(

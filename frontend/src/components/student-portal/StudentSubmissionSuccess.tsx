@@ -100,7 +100,7 @@ const StudentSubmissionSuccess: React.FC<StudentSubmissionSuccessProps> = ({
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.6rem' }}>
         <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.82rem' }} onClick={onSaveReceipt}>
-          <Download size={15} /> Save Receipt
+          <Download size={15} /> Download Receipt
         </button>
         <button className="btn btn-primary" onClick={onSubmitAnother}>
           Submit Another File

@@ -51,33 +51,3 @@ export const extractPreviewFilesFromUpload = async (selected: File): Promise<Pre
     return [];
   }
 };
-
-export const buildReceiptText = (successData: SubmissionSuccessData) => {
-  const timestamp = formatTorontoTimestamp(successData.timestamp);
-  const fileList = (successData.files || [])
-    .map((file) => `  - ${file.name} (${file.lines} lines, ${formatKb(file.size_bytes)})`)
-    .join('\n');
-
-  return [
-    '=======================================',
-    '  SUBMISSION RECEIPT',
-    '  Academic Integrity Portal - Brock University',
-    '=======================================',
-    '',
-    `Assignment:  ${successData.assignment_title || 'N/A'}`,
-    `Language:    ${successData.language || 'N/A'}`,
-    `Receipt ID:  ${successData.submission_id || 'N/A'}`,
-    `Timestamp:   ${timestamp}`,
-    `Attempt:     ${successData.attempt || 0} / 3`,
-    '',
-    `Files (${successData.total_files || 0}):`,
-    fileList || '  (none)',
-    `Total Lines: ${successData.total_lines || 0}`,
-    '',
-    `Status: ${successData.health === 'ok' ? 'PASS - All files processed successfully' : `WARNING - ${successData.health_message || 'Review your submission'}`}`,
-    '',
-    '=======================================',
-    '  Keep this receipt for your records.',
-    '=======================================',
-  ].join('\n');
-};
