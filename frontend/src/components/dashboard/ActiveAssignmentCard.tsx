@@ -25,24 +25,11 @@ const ActiveAssignmentCard: React.FC<ActiveAssignmentCardProps> = ({
 
   const handleCopyKey = (event: React.MouseEvent) => {
     event.stopPropagation();
-    if (navigator.clipboard && window.isSecureContext) {
+    if (navigator.clipboard) {
       navigator.clipboard.writeText(assignment.access_key).then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       });
-    } else {
-      // Fallback for HTTP (non-secure context)
-      const el = document.createElement('textarea');
-      el.value = assignment.access_key;
-      el.style.position = 'fixed';
-      el.style.opacity = '0';
-      document.body.appendChild(el);
-      el.focus();
-      el.select();
-      document.execCommand('copy');
-      document.body.removeChild(el);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
     }
   };
 
@@ -121,7 +108,7 @@ const ActiveAssignmentCard: React.FC<ActiveAssignmentCardProps> = ({
             event.currentTarget.style.background = 'transparent';
           }}
         >
-          <Key size={14} color="var(--brand-red)" />
+          <Key size={14} color="#d97706" />
           <span style={{ fontFamily: 'var(--font-mono)' }}>{assignment.access_key}</span>
           {copied ? <Check size={13} color="#059669" /> : <Copy size={13} color="var(--text-tertiary)" />}
           {copied && <span style={{ fontSize: '0.7rem', color: '#059669', fontWeight: 600 }}>Copied!</span>}
