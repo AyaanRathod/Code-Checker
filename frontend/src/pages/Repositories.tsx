@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Trash2, Database, Calendar, Code, Loader2, X, ShieldCheck, LogOut, UploadCloud } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Database, Calendar, Code, Loader2, X, LogOut, UploadCloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import apiClient from '../lib/apiClient';
 import { useFileDrop } from '../hooks/useFileDrop';
