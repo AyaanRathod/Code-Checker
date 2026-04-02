@@ -180,7 +180,7 @@ const Dashboard: React.FC = () => {
       setIsRepoModalOpen(false);
       setRepoUploadName('');
       setRepoUploadFile(null);
-      setRepoImportToActive(false);
+      setRepoImportToActive(true);
     } catch (error) {
       setRepoUploadError(extractErrorMessage(error, 'Failed to upload repository'));
     } finally {
@@ -300,7 +300,7 @@ const Dashboard: React.FC = () => {
         onClose={() => {
           setIsRepoModalOpen(false);
           setRepoUploadError('');
-          setRepoImportToActive(false);
+          setRepoImportToActive(true);
         }}
       />
 
@@ -382,7 +382,7 @@ const Dashboard: React.FC = () => {
           onOpenCreateModal={openCreateModal}
           onOpenRepoUploadModal={() => {
             setRepoUploadError('');
-            setRepoImportToActive(false);
+            setRepoImportToActive(true);
             setIsRepoModalOpen(true);
           }}
         />
