@@ -1,26 +1,141 @@
+import asyncio
 import uuid
-from typing import List, Dict, Optional
+from collections import defaultdict
+from typing import List, Optional
 import logging
 from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Body
+from sqlalchemy import insert as sa_insert, select, delete
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from app.core.database import get_db, AsyncSessionLocal
 from app.api.dependencies import get_current_user
 from app.models.instructor import Instructor
+from app.models.stored_file import StoredFile
+from app.models.boilerplate import Boilerplate
+from app.models.comparison_result import ComparisonResult
+from app.models.repository import Repository
+from app.models.repository_submission import RepositorySubmission
 from app.repositories.assignment_repository import assignment_repository
 from app.repositories.submission_repository import submission_repository
-from app.repositories.stored_file_repository import stored_file_repository
 from app.repositories.comparison_result_repository import comparison_result_repository
-
 from app.services.storage_service import storage_service
 from app.services.analysis_service import analysis_service
 from app.services.archival_service import effective_status
 from app.schemas.comparison_result import ComparisonResultCreate, ComparisonResultResponse
+from app.analysis import scorer
+from app.analysis.scorer import calculate_similarity
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Pairs below this score are not stored — reduces DB writes significantly at scale.
+MIN_SCORE_THRESHOLD = 5.0
+
+
+def _score_pairs(fp_list: list, pairs: list) -> list:
+    """
+    Synchronous scoring loop run in a thread executor so the event loop stays
+    free while all CPU-bound fingerprint comparisons complete.
+
+    Returns list of (i, j, score, ranges_a, ranges_b, matched_pairs).
+    """
+    results = []
+    for i, j in pairs:
+        fp_a = fp_list[i]
+        fp_b = fp_list[j]
+        if not fp_a or not fp_b:
+            continue
+        score, ranges_a, ranges_b, matched_pairs = calculate_similarity(fp_a, fp_b)
+        if score < MIN_SCORE_THRESHOLD:
+            continue
+        results.append((i, j, score, ranges_a, ranges_b, matched_pairs))
+    return results
+
+
+def _score_cross_pairs(sub_fps: list, repo_fps: list) -> list:
+    """
+    Synchronous cross-repo scoring loop run in a thread executor.
+    sub_fps: list of (index, fingerprint)
+    repo_fps: list of (index, fingerprint)
+    Returns list of (sub_idx, rs_idx, score, ranges_a, ranges_b, matched_pairs).
+    """
+    results = []
+    for sub_idx, s_fp in sub_fps:
+        if not s_fp:
+            continue
+        for rs_idx, t_fp in repo_fps:
+            if not t_fp:
+                continue
+            score, ranges_a, ranges_b, matched_pairs = calculate_similarity(s_fp, t_fp)
+            if score < MIN_SCORE_THRESHOLD:
+                continue
+            results.append((sub_idx, rs_idx, score, ranges_a, ranges_b, matched_pairs))
+    return results
+
+
+async def _build_submission_fingerprint(sid, files, lang, boilerplate_hashes, loop):
+    """
+    Download (concurrently via executor) and fingerprint all files for one submission.
+    Returns (sid, combined_fp, file_names) where file_names is {file_idx: fname}.
+    """
+    combined_fp = []
+    file_names = {}
+    for file_idx, f in enumerate(files):
+        fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
+        file_names[file_idx] = fname
+        try:
+            if f.fingerprint_hash:
+                for fp_item in f.fingerprint_hash:
+                    tagged = dict(fp_item)
+                    tagged['file_index'] = file_idx
+                    combined_fp.append(tagged)
+            else:
+                code_bytes = await loop.run_in_executor(None, storage_service.download_file, f.storage_path)
+                code_str = code_bytes.decode('utf-8')
+                fp = analysis_service.strip_and_fingerprint(code_str, lang)
+                for fp_item in fp:
+                    fp_item['file_index'] = file_idx
+                combined_fp.extend(fp)
+        except Exception:
+            logger.exception("Error downloading/parsing stored file", extra={"storage_path": f.storage_path})
+
+    if boilerplate_hashes and combined_fp:
+        combined_fp = scorer.remove_boilerplate(combined_fp, boilerplate_hashes)
+
+    return sid, combined_fp, file_names
+
+
+def _build_match_metadata(ranges_a, ranges_b, source_file_names, target_file_names, matched_pairs, extra=None):
+    """Build the match_metadata dict from scoring output."""
+    s_file_ranges = defaultdict(list)
+    for r in ranges_a:
+        s_file_ranges[r.get("file_index", 0)].append({"start": r["start"], "end": r["end"]})
+
+    t_file_ranges = defaultdict(list)
+    for r in ranges_b:
+        t_file_ranges[r.get("file_index", 0)].append({"start": r["start"], "end": r["end"]})
+
+    source_files_meta = [
+        {"file_index": fi, "filename": source_file_names.get(fi, f"file_{fi}"), "ranges": s_file_ranges[fi]}
+        for fi in sorted(s_file_ranges.keys())
+    ]
+    target_files_meta = [
+        {"file_index": fi, "filename": target_file_names.get(fi, f"file_{fi}"), "ranges": t_file_ranges[fi]}
+        for fi in sorted(t_file_ranges.keys())
+    ]
+
+    metadata = {
+        "source_files": source_files_meta,
+        "target_files": target_files_meta,
+        "matched_pairs": matched_pairs,
+    }
+    if extra:
+        metadata.update(extra)
+    return metadata
 
 
 class AnalysisRequest(BaseModel):
@@ -38,9 +153,12 @@ def _restored_status(assignment) -> str:
 
 async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Optional[List[uuid.UUID]] = None):
     """
-    Background worker function that performs an N x N comparison
-    of all active submissions in the assignment, plus optional
-    cross-repo comparisons against selected repositories.
+    Background worker: N×N comparison of all active submissions, plus optional
+    cross-repo comparisons. Optimised for 200+ submission scale:
+      - Concurrent MinIO downloads via asyncio.gather + run_in_executor
+      - Scoring loop offloaded to thread executor (frees event loop)
+      - Single bulk INSERT instead of per-pair ORM creates
+      - Pairs below MIN_SCORE_THRESHOLD are discarded
     """
     async with AsyncSessionLocal() as db:
         try:
@@ -52,79 +170,54 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
             if len(submissions) < 2:
                 assignment.status = _restored_status(assignment)
                 await db.commit()
-                return # Nothing to compare
+                return
 
-            # Get stored files for each submission
+            # Fetch stored files for all submissions
             sub_files = {}
             for sub in submissions:
-                # We fetch files
-                from sqlalchemy import select, delete
-                from sqlalchemy.orm import joinedload
-                from app.models.stored_file import StoredFile
-                result = await db.execute(select(StoredFile).where(StoredFile.submission_id == sub.id).order_by(StoredFile.storage_path))
-                files = list(result.scalars().all())
-                sub_files[sub.id] = files
+                result = await db.execute(
+                    select(StoredFile)
+                    .where(StoredFile.submission_id == sub.id)
+                    .order_by(StoredFile.storage_path)
+                )
+                sub_files[sub.id] = list(result.scalars().all())
 
-            # We need the language from the assignment
             lang = assignment.language
 
-            # Build boilerplate fingerprint hashes to exclude from comparisons
-            from app.models.boilerplate import Boilerplate
-            from app.analysis import scorer
-
-            bp_query = await db.execute(select(Boilerplate).where(Boilerplate.assignment_id == assignment_id))
+            # Build boilerplate fingerprint hashes
+            bp_query = await db.execute(
+                select(Boilerplate).where(Boilerplate.assignment_id == assignment_id)
+            )
             boilerplate_records = bp_query.scalars().all()
 
             boilerplate_hashes: set = set()
             for bp in boilerplate_records:
                 try:
-                    if bp.content:
-                        bp_code = bp.content
-                    else:
-                        bp_bytes = storage_service.download_file(bp.storage_path)
-                        bp_code = bp_bytes.decode('utf-8')
+                    bp_code = bp.content if bp.content else storage_service.download_file(bp.storage_path).decode('utf-8')
                     bp_fp = analysis_service.strip_and_fingerprint(bp_code, lang)
                     boilerplate_hashes.update(fp_item['hash'] for fp_item in bp_fp)
                 except Exception:
                     logger.exception("Error processing boilerplate", extra={"boilerplate_id": str(bp.id)})
 
-            # We pull code down from MinIO, fingerprint, store fingerprints in memory
-            # Then we compare them.
+            # ── Fix 1: Concurrent MinIO downloads ─────────────────────────────
+            loop = asyncio.get_event_loop()
+            fp_tasks = [
+                _build_submission_fingerprint(sid, files, lang, boilerplate_hashes, loop)
+                for sid, files in sub_files.items()
+            ]
+            fp_results = await asyncio.gather(*fp_tasks, return_exceptions=True)
+
             fingerprints = {}
-            # Track (submission_id, file_index) -> filename for per-file metadata
-            sub_file_names = {}
-
-            for sid, files in sub_files.items():
-                combined_fp = []
-                for file_idx, f in enumerate(files):
-                    # Extract filename from storage_path
-                    fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
-                    sub_file_names[(sid, file_idx)] = fname
-                    try:
-                        if f.fingerprint_hash:
-                            for fp_item in f.fingerprint_hash:
-                                tagged = dict(fp_item)
-                                tagged['file_index'] = file_idx
-                                combined_fp.append(tagged)
-                        else:
-                            code_bytes = storage_service.download_file(f.storage_path)
-                            code_str = code_bytes.decode('utf-8')
-                            fp = analysis_service.strip_and_fingerprint(code_str, lang)
-                            for fp_item in fp:
-                                fp_item['file_index'] = file_idx
-                            combined_fp.extend(fp)
-                    except Exception:
-                        logger.exception("Error downloading/parsing stored file", extra={"storage_path": f.storage_path})
-
-                # Remove boilerplate fingerprints before comparison
-                if boilerplate_hashes and combined_fp:
-                    combined_fp = scorer.remove_boilerplate(combined_fp, boilerplate_hashes)
-
+            sub_file_names = {}  # {sid: {file_idx: fname}}
+            for r in fp_results:
+                if isinstance(r, Exception):
+                    logger.exception("Error building submission fingerprint")
+                    continue
+                sid, combined_fp, file_names = r
                 fingerprints[sid] = combined_fp
+                sub_file_names[sid] = file_names
 
-            # Clear previous comparison results for this assignment before re-running
-            from app.models.comparison_result import ComparisonResult
-
+            # Clear previous comparison results before re-running
             sub_id_list = [s.id for s in submissions]
             await db.execute(
                 delete(ComparisonResult).where(
@@ -133,68 +226,47 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
                 )
             )
 
-            from collections import defaultdict
+            # ── Fix 2: Scoring in thread executor + Fix 4: Skip low scores ────
+            sub_list = list(submissions)
+            fp_list = [fingerprints.get(sub.id, []) for sub in sub_list]
+            pairs = [(i, j) for i in range(len(sub_list)) for j in range(i + 1, len(sub_list))]
 
-            sub_ids = list(submissions)
-            for i in range(len(sub_ids)):
-                for j in range(i + 1, len(sub_ids)):
-                    source = sub_ids[i]
-                    target = sub_ids[j]
+            scored = await loop.run_in_executor(None, _score_pairs, fp_list, pairs)
 
-                    s_fp = fingerprints.get(source.id, [])
-                    t_fp = fingerprints.get(target.id, [])
+            # ── Fix 3: Bulk INSERT ─────────────────────────────────────────────
+            now = datetime.now(timezone.utc)
+            results_batch = []
+            for i, j, score, ranges_a, ranges_b, matched_pairs in scored:
+                source = sub_list[i]
+                target = sub_list[j]
+                metadata = _build_match_metadata(
+                    ranges_a, ranges_b,
+                    sub_file_names.get(source.id, {}),
+                    sub_file_names.get(target.id, {}),
+                    matched_pairs,
+                )
+                results_batch.append({
+                    "id": uuid.uuid4(),
+                    "source_submission_id": source.id,
+                    "target_submission_id": target.id,
+                    "target_repo_submission_id": None,
+                    "comparison_type": "internal",
+                    "similarity_score": score,
+                    "match_metadata": metadata,
+                    "created_at": now,
+                })
 
-                    if not s_fp or not t_fp:
-                        continue
+            if results_batch:
+                await db.execute(sa_insert(ComparisonResult), results_batch)
 
-                    score, ranges_a, ranges_b, matched_pairs = analysis_service.calculate_similarity_score(s_fp, t_fp)
-
-                    # Create DB record for all comparisons, even if score is 0
-                    if score >= 0:
-                        # Group match ranges by file_index for per-file metadata
-                        s_file_ranges = defaultdict(list)
-                        for r in ranges_a:
-                            s_file_ranges[r.get("file_index", 0)].append({"start": r["start"], "end": r["end"]})
-
-                        t_file_ranges = defaultdict(list)
-                        for r in ranges_b:
-                            t_file_ranges[r.get("file_index", 0)].append({"start": r["start"], "end": r["end"]})
-
-                        source_files_meta = []
-                        for fi in sorted(s_file_ranges.keys()):
-                            fname = sub_file_names.get((source.id, fi), f"file_{fi}")
-                            source_files_meta.append({"file_index": fi, "filename": fname, "ranges": s_file_ranges[fi]})
-
-                        target_files_meta = []
-                        for fi in sorted(t_file_ranges.keys()):
-                            fname = sub_file_names.get((target.id, fi), f"file_{fi}")
-                            target_files_meta.append({"file_index": fi, "filename": fname, "ranges": t_file_ranges[fi]})
-
-                        metadata = {
-                            "source_files": source_files_meta,
-                            "target_files": target_files_meta,
-                            "matched_pairs": matched_pairs
-                        }
-                        data = ComparisonResultCreate(
-                            source_submission_id=source.id,
-                            target_submission_id=target.id,
-                            similarity_score=score,
-                            match_metadata=metadata
-                        )
-                        await comparison_result_repository.create(db, data)
-
-            # ---- Cross-repo comparisons ----
+            # ── Cross-repo comparisons ─────────────────────────────────────────
             if repository_ids:
-                from app.models.repository import Repository
-                from app.models.repository_submission import RepositorySubmission
-
                 for repo_id in repository_ids:
-                    repo = await db.execute(select(Repository).where(Repository.id == repo_id))
-                    repo_obj = repo.scalars().first()
+                    repo_result = await db.execute(select(Repository).where(Repository.id == repo_id))
+                    repo_obj = repo_result.scalars().first()
                     if not repo_obj:
                         continue
 
-                    # Fetch repo submissions with their files
                     rs_query = await db.execute(
                         select(RepositorySubmission)
                         .options(joinedload(RepositorySubmission.stored_files))
@@ -202,87 +274,59 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
                     )
                     repo_subs = rs_query.scalars().unique().all()
 
-                    # Fingerprint each repo submission
+                    # Concurrent MinIO downloads for repo submissions
+                    repo_fp_tasks = [
+                        _build_submission_fingerprint(rs.id, rs.stored_files or [], lang, boilerplate_hashes, loop)
+                        for rs in repo_subs
+                    ]
+                    repo_fp_results = await asyncio.gather(*repo_fp_tasks, return_exceptions=True)
+
                     repo_fingerprints = {}
                     repo_file_names = {}
-
-                    for rs in repo_subs:
-                        combined_fp = []
-                        for file_idx, f in enumerate(rs.stored_files or []):
-                            fname = f.storage_path.rsplit('/', 1)[-1] if '/' in f.storage_path else f.storage_path
-                            repo_file_names[(rs.id, file_idx)] = fname
-                            try:
-                                if f.fingerprint_hash:
-                                    for fp_item in f.fingerprint_hash:
-                                        tagged = dict(fp_item)
-                                        tagged['file_index'] = file_idx
-                                        combined_fp.append(tagged)
-                                else:
-                                    code_bytes = storage_service.download_file(f.storage_path)
-                                    code_str = code_bytes.decode('utf-8')
-                                    fp = analysis_service.strip_and_fingerprint(code_str, lang)
-                                    for fp_item in fp:
-                                        fp_item['file_index'] = file_idx
-                                    combined_fp.extend(fp)
-                            except Exception:
-                                logger.exception("Error fingerprinting repo file", extra={"storage_path": f.storage_path})
-
-                        if boilerplate_hashes and combined_fp:
-                            combined_fp = scorer.remove_boilerplate(combined_fp, boilerplate_hashes)
-
-                        repo_fingerprints[rs.id] = combined_fp
-
-                    # Compare each current submission against each repo submission
-                    for sub in submissions:
-                        s_fp = fingerprints.get(sub.id, [])
-                        if not s_fp:
+                    for r in repo_fp_results:
+                        if isinstance(r, Exception):
+                            logger.exception("Error building repo submission fingerprint")
                             continue
+                        rsid, combined_fp, file_names = r
+                        repo_fingerprints[rsid] = combined_fp
+                        repo_file_names[rsid] = file_names
 
-                        for rs in repo_subs:
-                            t_fp = repo_fingerprints.get(rs.id, [])
-                            if not t_fp:
-                                continue
+                    # Score cross pairs in thread executor
+                    sub_fps = [(i, fingerprints.get(sub.id, [])) for i, sub in enumerate(sub_list)]
+                    rs_fps = [(j, repo_fingerprints.get(rs.id, [])) for j, rs in enumerate(repo_subs)]
 
-                            score, ranges_a, ranges_b, matched_pairs = analysis_service.calculate_similarity_score(s_fp, t_fp)
+                    cross_scored = await loop.run_in_executor(None, _score_cross_pairs, sub_fps, rs_fps)
 
-                            if score >= 0:
-                                s_file_ranges = defaultdict(list)
-                                for r in ranges_a:
-                                    s_file_ranges[r.get("file_index", 0)].append({"start": r["start"], "end": r["end"]})
+                    # Bulk INSERT cross-repo results
+                    cross_batch = []
+                    for sub_idx, rs_idx, score, ranges_a, ranges_b, matched_pairs in cross_scored:
+                        sub = sub_list[sub_idx]
+                        rs = repo_subs[rs_idx]
+                        repo_alias = f"REPO-{str(rs.id).replace('-', '')[:8].upper()}"
+                        metadata = _build_match_metadata(
+                            ranges_a, ranges_b,
+                            sub_file_names.get(sub.id, {}),
+                            repo_file_names.get(rs.id, {}),
+                            matched_pairs,
+                            extra={"repo_name": repo_obj.name, "repo_label": repo_alias},
+                        )
+                        cross_batch.append({
+                            "id": uuid.uuid4(),
+                            "source_submission_id": sub.id,
+                            "target_submission_id": None,
+                            "target_repo_submission_id": rs.id,
+                            "comparison_type": "cross_repo",
+                            "similarity_score": score,
+                            "match_metadata": metadata,
+                            "created_at": now,
+                        })
 
-                                t_file_ranges = defaultdict(list)
-                                for r in ranges_b:
-                                    t_file_ranges[r.get("file_index", 0)].append({"start": r["start"], "end": r["end"]})
-
-                                source_files_meta = []
-                                for fi in sorted(s_file_ranges.keys()):
-                                    fname = sub_file_names.get((sub.id, fi), f"file_{fi}")
-                                    source_files_meta.append({"file_index": fi, "filename": fname, "ranges": s_file_ranges[fi]})
-
-                                target_files_meta = []
-                                for fi in sorted(t_file_ranges.keys()):
-                                    fname = repo_file_names.get((rs.id, fi), f"file_{fi}")
-                                    target_files_meta.append({"file_index": fi, "filename": fname, "ranges": t_file_ranges[fi]})
-
-                                repo_alias = f"REPO-{str(rs.id).replace('-', '')[:8].upper()}"
-                                metadata = {
-                                    "source_files": source_files_meta,
-                                    "target_files": target_files_meta,
-                                    "matched_pairs": matched_pairs,
-                                    "repo_name": repo_obj.name,
-                                    "repo_label": repo_alias
-                                }
-                                data = ComparisonResultCreate(
-                                    source_submission_id=sub.id,
-                                    target_repo_submission_id=rs.id,
-                                    comparison_type="cross_repo",
-                                    similarity_score=score,
-                                    match_metadata=metadata
-                                )
-                                await comparison_result_repository.create(db, data)
+                    if cross_batch:
+                        await db.execute(sa_insert(ComparisonResult), cross_batch)
 
             assignment.status = _restored_status(assignment)
             await db.commit()
+
         except Exception:
             await db.rollback()
             assignment = await assignment_repository.get(db, assignment_id)
@@ -290,6 +334,7 @@ async def perform_full_analysis(assignment_id: uuid.UUID, repository_ids: Option
                 assignment.status = _restored_status(assignment)
                 await db.commit()
             logger.exception("Background analysis failed", extra={"assignment_id": str(assignment_id)})
+
 
 @router.post("/{assignment_id}/run", status_code=status.HTTP_202_ACCEPTED)
 async def trigger_analysis(
@@ -303,7 +348,6 @@ async def trigger_analysis(
     Starts the similarity analysis asynchronously.
     Optionally accepts repository_ids to run cross-repo comparisons.
     """
-    from sqlalchemy import select
     from app.models.assignment import Assignment
     from app.models.course import Course
 
@@ -322,6 +366,5 @@ async def trigger_analysis(
     assignment.status = "Analyzing..."
     await db.commit()
 
-    # Queue worker
     background_tasks.add_task(perform_full_analysis, assignment_id, repo_ids)
     return {"message": "Analysis started in background"}
