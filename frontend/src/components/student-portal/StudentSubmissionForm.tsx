@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, ArrowRight, Badge, File as FileIcon, FileCode2, Key, UploadCloud, User, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Badge, File as FileIcon, FileCode2, Key, Loader2, UploadCloud, User, X } from 'lucide-react';
 import { ACCEPTED_UPLOAD, formatKb } from './studentPortalUtils';
 import type { PreviewFile, StudentSubmissionFormState } from './types';
 
@@ -230,7 +230,11 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
       )}
 
       <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '0.85rem', fontSize: isMobileLayout ? '0.95rem' : '1rem', borderRadius: 'var(--radius-sm)' }} disabled={loading}>
-        {loading ? 'Processing...' : 'Submit'} <ArrowRight size={16} style={{ marginLeft: '0.45rem' }} />
+        {loading ? 'Processing...' : 'Submit'}
+        {loading
+          ? <Loader2 size={16} className="cc-spin" style={{ marginLeft: '0.45rem' }} />
+          : <ArrowRight size={16} style={{ marginLeft: '0.45rem' }} />
+        }
       </button>
       <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
         Need help? <a href="mailto:faculty@brocku.ca?subject=CodeSimilar%20Submission%20Help" style={{ color: 'var(--brand-red)', fontWeight: 600 }}>Contact Support</a>

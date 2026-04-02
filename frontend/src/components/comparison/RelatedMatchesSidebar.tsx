@@ -1,6 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import type { OtherAssignmentMatch } from './types';
+import LoadingSpinner from '../ui/LoadingSpinner';
 
 interface RelatedMatchesSidebarProps {
   isMobileLayout: boolean;
@@ -105,9 +106,7 @@ const RelatedMatchesSidebar: React.FC<RelatedMatchesSidebarProps> = ({
 
       <div style={{ flex: 1, overflow: 'auto' }}>
         {otherMatchesLoading ? (
-          <div style={{ padding: '2rem', color: 'var(--text-tertiary)', textAlign: 'center' }}>
-            Loading related matches...
-          </div>
+          <LoadingSpinner size="sm" label="Loading related matches..." />
         ) : matches.length === 0 ? (
           <div style={{ padding: '2rem', color: 'var(--text-tertiary)', textAlign: 'center' }}>
             No related matches match the selected score filter.

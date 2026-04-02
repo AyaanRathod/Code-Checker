@@ -13,6 +13,7 @@ import SimilarityMatrixTab from '../components/assignment-details/SimilarityMatr
 import CollusionClusterTab from '../components/assignment-details/CollusionClusterTab';
 import { useAssignmentDetailsData } from '../hooks/useAssignmentDetailsData';
 import type { AssignmentDetailsLocationState, TabView } from '../components/assignment-details/types';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const TAB_QUERY_KEY = 'tab';
 const TAB_STORAGE_PREFIX = 'assignmentDetailsActiveTab:';
@@ -98,7 +99,7 @@ const AssignmentDetails: React.FC = () => {
     navigate,
   });
 
-  if (loading) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Loading assignment details...</div>;
+  if (loading) return <LoadingSpinner label="Loading assignment details..." />;
   if (!assignment) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Assignment not found.</div>;
 
   return (

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GoogleLogin } from '@react-oauth/google';
-import { Lock, ArrowRight, Mail, Key, Eye, EyeOff } from 'lucide-react';
+import { Lock, ArrowRight, Loader2, Mail, Key, Eye, EyeOff } from 'lucide-react';
 import { loginApi, googleAuthApi } from '../api/authApi';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -202,7 +202,7 @@ const InstructorLogin: React.FC = () => {
             disabled={loading}
           >
             {loading ? 'Authenticating...' : 'Sign In'}
-            {!loading && <ArrowRight size={18} />}
+            {loading ? <Loader2 size={18} className="cc-spin" /> : <ArrowRight size={18} />}
           </button>
         </form>
 

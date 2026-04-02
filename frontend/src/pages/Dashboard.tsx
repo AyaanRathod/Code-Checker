@@ -12,6 +12,7 @@ import ArchivedAssignmentsSection from '../components/dashboard/ArchivedAssignme
 import { useDashboardData } from '../hooks/useDashboardData';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import { useToast } from '../components/ui/Toast';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 import type {
   Assignment,
   AssignmentFilter,
@@ -56,7 +57,7 @@ const Dashboard: React.FC = () => {
   const [repoUploadName, setRepoUploadName] = useState('');
   const [repoUploadLanguage, setRepoUploadLanguage] = useState<'JAVA' | 'CPP' | 'C'>('JAVA');
   const [repoUploadFile, setRepoUploadFile] = useState<File | null>(null);
-  const [repoImportToActive, setRepoImportToActive] = useState(false);
+  const [repoImportToActive, setRepoImportToActive] = useState(true);
   const [repoUploading, setRepoUploading] = useState(false);
   const [repoUploadError, setRepoUploadError] = useState('');
 
@@ -387,9 +388,7 @@ const Dashboard: React.FC = () => {
         />
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-tertiary)' }}>
-            Loading valid assignments...
-          </div>
+          <LoadingSpinner label="Loading assignments..." />
         ) : assignments.length === 0 ? (
           <div className="glass-card" style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
             <BookOpen size={48} style={{ opacity: 0.3, margin: '0 auto 1rem auto' }} />

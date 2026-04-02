@@ -7,6 +7,7 @@ import RelatedMatchesSidebar from '../components/comparison/RelatedMatchesSideba
 import CodePane from '../components/comparison/CodePane';
 import FloatingMatchNavigator from '../components/comparison/FloatingMatchNavigator';
 import { useComparisonData } from '../components/comparison/useComparisonData';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 import {
   buildParsedData,
   buildSourceFiles,
@@ -302,7 +303,7 @@ const ComparisonView: React.FC = () => {
 
   const getLineStyle = (lineIdx: number, map: Map<number, Set<number>>) => getStyleForLine(lineIdx, map, activeBlockId);
 
-  if (loading) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Loading comparison...</div>;
+  if (loading) return <LoadingSpinner label="Loading comparison..." />;
   if (!data || !parsedData) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Comparison not found.</div>;
 
   return (
