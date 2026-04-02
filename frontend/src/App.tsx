@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Laptop } from 'lucide-react';
 
 import StudentPortal from './pages/StudentPortal';
@@ -12,9 +12,11 @@ import ComparisonView from './pages/ComparisonView';
 import Repositories from './pages/Repositories';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
+import NotFound from './pages/NotFound';
 
 import { ToastProvider } from './components/ui/Toast';
 import { useAuth } from './contexts/AuthContext';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 import './index.css';
 
 const GlobalHeader = () => {
@@ -122,7 +124,7 @@ const AppContent = () => {
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
 
       <div
@@ -152,11 +154,13 @@ const AppContent = () => {
 
 function App() {
   return (
-    <ToastProvider>
-      <Router>
-        <AppContent />
-      </Router>
-    </ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
 

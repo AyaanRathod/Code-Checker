@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle, FileWarning, Search } from 'lucide-react';
+import { AlertTriangle, CheckCircle, FileWarning } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { AssignmentComparisonItem } from './types';
 
@@ -48,10 +48,6 @@ const PairwiseResultsTab: React.FC<PairwiseResultsTabProps> = ({
             <option value="81-100">81% - 100%</option>
           </select>
 
-          <div className="input-with-icon">
-            <Search />
-            <input type="text" placeholder="Search Masked ID..." className="form-input" style={{ width: isMobileLayout ? '180px' : '280px', background: 'var(--bg-surface)' }} />
-          </div>
         </div>
       </div>
 

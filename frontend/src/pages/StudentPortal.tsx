@@ -14,6 +14,7 @@ const StudentPortal: React.FC = () => {
     loading,
     error,
     successData,
+    assignmentInfo,
     dragActive,
     dragHandlers,
     showZipNoValidFilesWarning,
@@ -79,6 +80,7 @@ const StudentPortal: React.FC = () => {
             previewFiles={previewFiles}
             loading={loading}
             error={error}
+            assignmentInfo={assignmentInfo}
             dragActive={dragActive}
             dragHandlers={dragHandlers}
             showZipNoValidFilesWarning={showZipNoValidFilesWarning}
