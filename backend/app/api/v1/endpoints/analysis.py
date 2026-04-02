@@ -33,7 +33,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # Pairs below this score are not stored — reduces DB writes significantly at scale.
-MIN_SCORE_THRESHOLD = 5.0
+MIN_SCORE_THRESHOLD = 0.0
 
 
 def _score_pairs(fp_list: list, pairs: list) -> list:
