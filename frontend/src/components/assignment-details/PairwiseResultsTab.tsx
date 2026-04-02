@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle, FileWarning, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { AssignmentComparisonItem } from './types';
+
+const PAGE_SIZE = 50;
 
 interface PairwiseResultsTabProps {
   isMobileLayout: boolean;
@@ -20,6 +22,13 @@ const PairwiseResultsTab: React.FC<PairwiseResultsTabProps> = ({
   onSimilarityRangeChange,
   onToggleSimilaritySort,
 }) => {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(comparisons.length / PAGE_SIZE);
+  const paginatedComparisons = comparisons.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  // Reset to first page whenever the filtered/sorted list changes
+  useEffect(() => { setPage(0); }, [comparisons]);
+
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.6rem' }}>
@@ -55,7 +64,7 @@ const PairwiseResultsTab: React.FC<PairwiseResultsTabProps> = ({
           </div>
         ) : isMobileLayout ? (
           <div style={{ display: 'grid', gap: '0.6rem', padding: '0.6rem' }}>
-            {comparisons.map((comparison) => (
+            {paginatedComparisons.map((comparison) => (
               <div key={comparison.id} style={{ border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-sm)', padding: '0.7rem', background: 'var(--bg-surface)' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem', marginBottom: '0.55rem' }}>
                   <div>
@@ -101,7 +110,7 @@ const PairwiseResultsTab: React.FC<PairwiseResultsTabProps> = ({
               </tr>
             </thead>
             <tbody>
-              {comparisons.map((comparison) => (
+              {paginatedComparisons.map((comparison) => (
                 <tr key={comparison.id} style={{ borderBottom: '1px solid var(--border-subtle)', transition: 'background var(--transition-fast)' }} className="table-row-hover">
                   <td style={{ padding: '1.25rem 1rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{comparison.source_student}</td>
                   <td style={{ padding: '1.25rem 1rem', fontSize: '0.85rem' }}>
@@ -140,9 +149,36 @@ const PairwiseResultsTab: React.FC<PairwiseResultsTabProps> = ({
             </tbody>
           </table>
         )}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 1rem', borderTop: '1px solid var(--border-subtle)', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+            <span>
+              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, comparisons.length)} of {comparisons.length}
+            </span>
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <button
+                type="button"
+                onClick={() => setPage((p) => p - 1)}
+                disabled={page === 0}
+                className="btn btn-outline"
+                style={{ padding: '0.25rem 0.65rem', fontSize: '0.8rem', opacity: page === 0 ? 0.4 : 1 }}
+              >
+                ← Prev
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={page >= totalPages - 1}
+                className="btn btn-outline"
+                style={{ padding: '0.25rem 0.65rem', fontSize: '0.8rem', opacity: page >= totalPages - 1 ? 0.4 : 1 }}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
 };
 
-export default PairwiseResultsTab;
+export default React.memo(PairwiseResultsTab);

@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { AssignmentComparisonItem } from './types';
-import { buildUniqueMatrixIds, findComparisonPair } from './assignmentDetailsUtils';
+import { buildUniqueMatrixIds } from './assignmentDetailsUtils';
 
 interface SimilarityMatrixTabProps {
   comparisons: AssignmentComparisonItem[];
@@ -55,7 +55,21 @@ const HEADER_WIDTH = 90;
 const toShortId = (id: string) => (id.length > 9 ? `${id.slice(0, 9)}...` : id);
 
 const SimilarityMatrixTab: React.FC<SimilarityMatrixTabProps> = ({ comparisons, onInspectComparison }) => {
-  const studentKeys = buildUniqueMatrixIds(comparisons);
+  const studentKeys = useMemo(() => buildUniqueMatrixIds(comparisons), [comparisons]);
+
+  // O(1) lookup: normalised "a|b" key (sorted so order doesn't matter) → comparison.
+  // Replaces the per-cell O(n) Array.find that made the matrix O(n³) at 200 students.
+  const comparisonMap = useMemo(() => {
+    const map = new Map<string, AssignmentComparisonItem>();
+    for (const c of comparisons) {
+      const key = [c.source_student, c.target_student].sort().join('|');
+      map.set(key, c);
+    }
+    return map;
+  }, [comparisons]);
+
+  const getComparison = (rowId: string, colId: string) =>
+    comparisonMap.get([rowId, colId].sort().join('|')) ?? null;
 
   if (studentKeys.length === 0) {
     return (
@@ -179,7 +193,7 @@ const SimilarityMatrixTab: React.FC<SimilarityMatrixTabProps> = ({ comparisons, 
                     );
                   }
 
-                  const comparison = findComparisonPair(comparisons, rowKey, colKey);
+                  const comparison = getComparison(rowKey, colKey);
                   const score = comparison?.score;
                   const bg = getMatrixCellColor(score);
                   const fg = getTextColor(score);
@@ -225,4 +239,4 @@ const SimilarityMatrixTab: React.FC<SimilarityMatrixTabProps> = ({ comparisons, 
   );
 };
 
-export default SimilarityMatrixTab;
+export default React.memo(SimilarityMatrixTab);
