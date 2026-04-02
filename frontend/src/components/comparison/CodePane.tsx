@@ -1,7 +1,8 @@
 import React from 'react';
-import { Download } from 'lucide-react';
+import { Download, Printer } from 'lucide-react';
 import FileTabBar from './FileTabBar';
-import type { FileEntry, LineHighlightStyle } from './types';
+import type { FileEntry, LineHighlightStyle, MatchPair } from './types';
+import { generateComparisonPDF } from '../../lib/generateComparisonPDF';
 
 interface CodePaneProps {
   pane: 'source' | 'target';
@@ -13,6 +14,8 @@ interface CodePaneProps {
   submissionId?: string;
   onDownload: (submissionId: string) => void;
   files: FileEntry[];
+  allMatchPairs: MatchPair[];
+  score: number;
   activeFileIdx: number;
   onSelectFile: (index: number) => void;
   onAfterSelectFile: () => void;
@@ -35,6 +38,8 @@ const CodePane: React.FC<CodePaneProps> = ({
   submissionId,
   onDownload,
   files,
+  allMatchPairs,
+  score,
   activeFileIdx,
   onSelectFile,
   onAfterSelectFile,
@@ -46,6 +51,12 @@ const CodePane: React.FC<CodePaneProps> = ({
   isMobileLayout,
   withRightBorder,
 }) => {
+  const handlePrintPDF = () => {
+    const identity = revealed ? studentIdentity : maskedIdentity;
+    const safeIdentity = identity.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const pdfFilename = `${pane}_${safeIdentity}_comparison.pdf`;
+    generateComparisonPDF(pane, files, allMatchPairs, identity, score, pdfFilename);
+  };
   return (
     <div
       style={{
@@ -84,20 +95,34 @@ const CodePane: React.FC<CodePaneProps> = ({
           )}
         </div>
 
-        {submissionId && (
+        <div style={{ display: 'flex', gap: '0.4rem' }}>
           <button
-            onClick={() => onDownload(submissionId)}
+            onClick={handlePrintPDF}
             className="btn btn-outline"
             style={{
               padding: isMobileLayout ? '0.3rem 0.45rem' : '0.35rem 0.75rem',
               fontSize: isMobileLayout ? '0.72rem' : '0.8rem',
               gap: '0.35rem',
             }}
-            title={`Download ${pane} submission files`}
+            title={`Print ${pane} code with highlights to PDF`}
           >
-            <Download size={14} /> Download
+            <Printer size={14} /> {isMobileLayout ? '' : 'Print PDF'}
           </button>
-        )}
+          {submissionId && (
+            <button
+              onClick={() => onDownload(submissionId)}
+              className="btn btn-outline"
+              style={{
+                padding: isMobileLayout ? '0.3rem 0.45rem' : '0.35rem 0.75rem',
+                fontSize: isMobileLayout ? '0.72rem' : '0.8rem',
+                gap: '0.35rem',
+              }}
+              title={`Download ${pane} submission files`}
+            >
+              <Download size={14} /> {isMobileLayout ? '' : 'Download'}
+            </button>
+          )}
+        </div>
       </div>
 
       <FileTabBar

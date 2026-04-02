@@ -439,6 +439,8 @@ const ComparisonView: React.FC = () => {
             submissionId={data.source_submission_id}
             onDownload={handleDownloadSubmission}
             files={sourceFiles}
+            allMatchPairs={allMatchPairs}
+            score={score}
             activeFileIdx={sourceFileIdx}
             onSelectFile={setSourceFileIdx}
             onAfterSelectFile={() => setActiveBlockId(0)}
@@ -461,6 +463,8 @@ const ComparisonView: React.FC = () => {
             submissionId={data.target_submission_id}
             onDownload={handleDownloadSubmission}
             files={targetFiles}
+            allMatchPairs={allMatchPairs}
+            score={score}
             activeFileIdx={targetFileIdx}
             onSelectFile={setTargetFileIdx}
             onAfterSelectFile={() => setActiveBlockId(0)}
