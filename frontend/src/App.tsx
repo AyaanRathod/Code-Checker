@@ -10,6 +10,8 @@ import Dashboard from './pages/Dashboard.tsx';
 import AssignmentDetails from './pages/AssignmentDetails';
 import ComparisonView from './pages/ComparisonView';
 import Repositories from './pages/Repositories';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
 
 import { ToastProvider } from './components/ui/Toast';
 import { useAuth } from './contexts/AuthContext';
@@ -117,6 +119,9 @@ const AppContent = () => {
         <Route path="/instructor/compare/:comparison_id" element={<ComparisonView />} />
         <Route path="/instructor/repositories" element={<Repositories />} />
 
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
@@ -137,8 +142,8 @@ const AppContent = () => {
       >
         <span>&copy; {new Date().getFullYear()} CodeSimilar. All rights reserved.</span>
         <div className="global-footer-links" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <a href="#" style={{ color: 'var(--text-tertiary)' }}>Privacy Policy</a>
-          <a href="#" style={{ color: 'var(--text-tertiary)' }}>Terms of Service</a>
+          <Link to="/privacy" style={{ color: 'var(--text-tertiary)' }}>Privacy Policy</Link>
+          <Link to="/terms" style={{ color: 'var(--text-tertiary)' }}>Terms of Service</Link>
         </div>
       </div>
     </div>
