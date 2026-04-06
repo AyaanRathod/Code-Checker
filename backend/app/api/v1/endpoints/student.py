@@ -18,6 +18,21 @@ from app.services.storage_service import storage_service
 
 router = APIRouter()
 
+
+@router.get("/assignment-info")
+async def get_assignment_info(access_key: str, db: AsyncSession = Depends(get_db)):
+    """Return basic assignment info (title, deadline, language) for a given access key.
+    Used by the student portal to show deadline before submission."""
+    assignment = await assignment_repository.get_by_access_key(db, access_key)
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found.")
+    return {
+        "title": assignment.title,
+        "deadline": assignment.deadline,
+        "language": assignment.language,
+    }
+
+
 @router.post("/submit", status_code=status.HTTP_201_CREATED)
 async def submit_assignment(
     access_key: str = Form(...),

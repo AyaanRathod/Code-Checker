@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, ArrowRight, Badge, File as FileIcon, FileCode2, Key, UploadCloud, User, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Badge, File as FileIcon, FileCode2, Key, Loader2, UploadCloud, User, X } from 'lucide-react';
 import { ACCEPTED_UPLOAD, formatKb } from './studentPortalUtils';
 import type { PreviewFile, StudentSubmissionFormState } from './types';
 
@@ -11,6 +11,7 @@ interface StudentSubmissionFormProps {
   loading: boolean;
   isMobileLayout: boolean;
   error: string;
+  assignmentInfo: { title: string; deadline: string; language: string } | null;
   dragActive: boolean;
   dragHandlers: Pick<React.HTMLAttributes<HTMLDivElement>, 'onDragEnter' | 'onDragOver' | 'onDragLeave' | 'onDrop'>;
   showZipNoValidFilesWarning: boolean;
@@ -27,6 +28,7 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
   loading,
   isMobileLayout,
   error,
+  assignmentInfo,
   dragActive,
   dragHandlers,
   showZipNoValidFilesWarning,
@@ -50,6 +52,13 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
           <Key />
           <input id={inputIdAccessKey} type="text" className="form-input" style={{ background: 'var(--bg-surface)' }} placeholder="e.g. A1-B2C3" value={formState.accessKey} onChange={(event) => onFieldChange('accessKey', event.target.value)} aria-invalid={Boolean(error)} aria-describedby={error ? formErrorId : undefined} disabled={loading} required />
         </div>
+        {assignmentInfo && (
+          <div style={{ marginTop: '0.45rem', padding: '0.4rem 0.65rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem', color: '#15803d', display: 'flex', flexWrap: 'wrap', gap: '0.3rem 0.6rem', alignItems: 'center' }}>
+            <span style={{ fontWeight: 600 }}>{assignmentInfo.title}</span>
+            <span style={{ opacity: 0.5 }}>·</span>
+            <span>Due: {new Date(assignmentInfo.deadline).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Toronto' })}</span>
+          </div>
+        )}
       </div>
 
       <div className="form-group" style={{ marginBottom: '1.25rem' }}>
@@ -230,7 +239,11 @@ const StudentSubmissionForm: React.FC<StudentSubmissionFormProps> = ({
       )}
 
       <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '0.85rem', fontSize: isMobileLayout ? '0.95rem' : '1rem', borderRadius: 'var(--radius-sm)' }} disabled={loading}>
-        {loading ? 'Processing...' : 'Submit'} <ArrowRight size={16} style={{ marginLeft: '0.45rem' }} />
+        {loading ? 'Processing...' : 'Submit'}
+        {loading
+          ? <Loader2 size={16} className="cc-spin" style={{ marginLeft: '0.45rem' }} />
+          : <ArrowRight size={16} style={{ marginLeft: '0.45rem' }} />
+        }
       </button>
       <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
         Need help? <a href="mailto:faculty@brocku.ca?subject=CodeSimilar%20Submission%20Help" style={{ color: 'var(--brand-red)', fontWeight: 600 }}>Contact Support</a>

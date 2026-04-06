@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import apiClient from '../lib/apiClient';
 import { useFileDrop } from './useFileDrop';
 import {
@@ -24,6 +24,26 @@ export const useStudentPortalSubmission = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successData, setSuccessData] = useState<SubmissionSuccessData | null>(null);
+  const [assignmentInfo, setAssignmentInfo] = useState<{ title: string; deadline: string; language: string } | null>(null);
+
+  // Debounce-fetch assignment info when the access key field changes so students
+  // can see the assignment title and deadline before submitting.
+  useEffect(() => {
+    const key = formState.accessKey.trim();
+    if (!key) {
+      setAssignmentInfo(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiClient.get(`/student/assignment-info?access_key=${encodeURIComponent(key)}`);
+        setAssignmentInfo(res.data);
+      } catch {
+        setAssignmentInfo(null);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [formState.accessKey]);
 
   const processSelectedFile = useCallback(async (selected: File) => {
     setFile(selected);
@@ -85,6 +105,7 @@ export const useStudentPortalSubmission = () => {
 
   const submitAnother = useCallback(() => {
     setSuccessData(null);
+    setAssignmentInfo(null);
     clearFile();
   }, [clearFile]);
 
@@ -108,6 +129,7 @@ export const useStudentPortalSubmission = () => {
     loading,
     error,
     successData,
+    assignmentInfo,
     dragActive,
     dragHandlers,
     showZipNoValidFilesWarning,

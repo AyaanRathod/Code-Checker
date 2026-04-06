@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Archive, BookOpen, ChevronDown, Clock, Database, Download, Play } from 'lucide-react';
+import { ArrowLeft, Archive, BookOpen, ChevronDown, Clock, Database, Download, Loader2, Play } from 'lucide-react';
 import type { AssignmentDetailsModel } from './types';
 
 interface AssignmentDetailsHeaderProps {
@@ -68,6 +68,20 @@ const AssignmentDetailsHeader: React.FC<AssignmentDetailsHeaderProps> = ({
                   letterSpacing: '0.5px',
                 }}
               >
+                {assignment.status === 'Analyzing...' && (
+                  <span
+                    className="cc-pulse"
+                    style={{
+                      display: 'inline-block',
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      background: '#059669',
+                      marginRight: '5px',
+                      verticalAlign: 'middle',
+                    }}
+                  />
+                )}
                 {assignment.status}
               </span>
             </div>
@@ -83,7 +97,8 @@ const AssignmentDetailsHeader: React.FC<AssignmentDetailsHeaderProps> = ({
 
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button className="btn btn-outline" onClick={onDownloadSubmissions} disabled={downloading} style={{ background: 'var(--bg-surface)' }}>
-              <Archive size={16} /> {downloading ? 'Downloading...' : 'Download Submissions'}
+              {downloading ? <Loader2 size={16} className="cc-spin" /> : <Archive size={16} />}
+              {downloading ? 'Downloading...' : 'Download Submissions'}
             </button>
             {assignment.status !== 'Archived' && (
               <>
@@ -106,7 +121,8 @@ const AssignmentDetailsHeader: React.FC<AssignmentDetailsHeaderProps> = ({
                         borderBottomRightRadius: repositoriesCount > 0 ? 0 : undefined,
                       }}
                     >
-                      <Play size={16} fill="currentColor" /> {triggering ? 'Analyzing...' : 'Run Analysis'}
+                      {triggering ? <Loader2 size={16} className="cc-spin" /> : <Play size={16} fill="currentColor" />}
+                      {triggering ? 'Analyzing...' : 'Run Analysis'}
                     </button>
                     {repositoriesCount > 0 && (
                       <button

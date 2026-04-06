@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Trash2, Database, Calendar, Code, X, ShieldCheck, LogOut, UploadCloud } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, Database, Calendar, Code, Loader2, X, LogOut, UploadCloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import apiClient from '../lib/apiClient';
 import { useFileDrop } from '../hooks/useFileDrop';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import { useToast } from '../components/ui/Toast';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const Repositories: React.FC = () => {
   const navigate = useNavigate();
@@ -198,7 +199,8 @@ const Repositories: React.FC = () => {
                   </div>
                 </div>
 
-                <button type="submit" className="btn btn-primary" disabled={uploading} style={{ marginTop: '0.5rem' }}>
+                <button type="submit" className="btn btn-primary" disabled={uploading} style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                  {uploading && <Loader2 size={16} className="cc-spin" />}
                   {uploading ? 'Uploading & Processing...' : 'Upload Repository'}
                 </button>
               </form>
@@ -231,7 +233,7 @@ const Repositories: React.FC = () => {
         </div>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-tertiary)' }}>Loading repositories...</div>
+          <LoadingSpinner label="Loading repositories..." />
         ) : repos.length === 0 ? (
           <div className="glass-card" style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
             <Database size={48} style={{ opacity: 0.3, margin: '0 auto 1rem auto' }} />

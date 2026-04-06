@@ -5,12 +5,11 @@ import type {
   AssignmentMetrics,
   AssignmentSubmissionItem,
 } from '../components/assignment-details/types';
-import { buildCollusionGraphData, buildUniqueMatrixIds, findComparisonPair, formatBytes } from '../components/assignment-details/assignmentDetailsUtils';
+import { buildCollusionGraphData, formatBytes } from '../components/assignment-details/assignmentDetailsUtils';
 
 type Color = [number, number, number];
 
 const PAGE_W = 210;
-const PAGE_H = 297;
 const MARGIN = 14;
 const CONTENT_W = PAGE_W - MARGIN * 2;
 
@@ -55,18 +54,6 @@ function formatDateTime(iso?: string | null): string {
   }).format(new Date(iso));
 }
 
-function truncate(doc: jsPDF, text: string, maxWidth: number): string {
-  const value = text.replace(/\s+/g, ' ').trim();
-  if (!value) return '-';
-  if (doc.getTextWidth(value) <= maxWidth) return value;
-
-  const ellipsis = '...';
-  let end = value.length;
-  while (end > 0 && doc.getTextWidth(`${value.slice(0, end).trimEnd()}${ellipsis}`) > maxWidth) {
-    end -= 1;
-  }
-  return `${value.slice(0, end).trimEnd()}${ellipsis}`;
-}
 
 function formatPercentage(value: number): string {
   return `${value.toFixed(1)}%`;
@@ -87,21 +74,6 @@ function getStatusStyle(status: string): { label: string; fill: Color; text: Col
   if (value.includes('close')) return { label: 'CLOSED', fill: COLORS.successBg, text: COLORS.success };
   if (value.includes('open')) return { label: 'OPEN', fill: COLORS.paper, text: COLORS.text };
   return { label: status.toUpperCase() || 'STATUS', fill: COLORS.paper, text: COLORS.text };
-}
-
-function getRiskBand(score: number): { label: string; fill: Color; text: Color; soft: Color } {
-  if (score > 80) return { label: 'HIGH', fill: COLORS.danger, text: COLORS.white, soft: COLORS.dangerBg };
-  if (score > 60) return { label: 'MEDIUM', fill: COLORS.warning, text: COLORS.white, soft: COLORS.warningBg };
-  if (score > 40) return { label: 'LOW', fill: COLORS.low, text: COLORS.white, soft: COLORS.lowBg };
-  return { label: 'MINIMAL', fill: COLORS.success, text: COLORS.white, soft: COLORS.successBg };
-}
-
-function getMatrixCellStyle(score: number | undefined): { fill: Color; text: Color; label?: string } {
-  if (score === undefined || score <= 0) return { fill: COLORS.noComparisonBg, text: COLORS.muted };
-  if (score > 80) return { fill: COLORS.danger, text: COLORS.white };
-  if (score > 60) return { fill: COLORS.warning, text: COLORS.white };
-  if (score > 40) return { fill: COLORS.low, text: COLORS.white };
-  return { fill: COLORS.success, text: COLORS.white };
 }
 
 function drawSectionTitle(doc: jsPDF, title: string, y: number): number {
@@ -256,112 +228,6 @@ function drawRiskSpreadPanel(
   return y + panelHeight;
 }
 
-function drawMatrixLegend(doc: jsPDF, y: number): void {
-  const items = [
-    { label: 'High risk', color: COLORS.danger },
-    { label: 'Medium', color: COLORS.warning },
-    { label: 'Low', color: COLORS.low },
-    { label: 'Minimal', color: COLORS.success },
-    { label: 'No comparison', color: COLORS.noComparison },
-  ];
-  const segmentW = CONTENT_W / items.length;
-
-  items.forEach((item, index) => {
-    const x = MARGIN + index * segmentW;
-    doc.setFillColor(...item.color);
-    doc.roundedRect(x + 2, y, 5, 5, 1, 1, 'F');
-    doc.setTextColor(...COLORS.text);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.4);
-    doc.text(item.label, x + 9, y + 4.1);
-  });
-}
-
-function drawSimilarityMapPage(doc: jsPDF, assignment: AssignmentDetailsModel, comparisons: AssignmentComparisonItem[]): void {
-  const labels = buildUniqueMatrixIds(comparisons);
-
-  doc.setTextColor(...COLORS.ink);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14.6);
-  doc.text('Similarity Map', MARGIN, 18);
-
-  const subtitle = `Printed relationship map for ${assignment.course || 'Course'} ${assignment.title || 'Assignment'}. Red cells indicate the strongest similarity, while pale cells indicate no recorded comparison.`;
-  doc.setTextColor(...COLORS.text);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.2);
-  doc.text(doc.splitTextToSize(subtitle, CONTENT_W), MARGIN, 25);
-
-  doc.setTextColor(...COLORS.muted);
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(7.0);
-  doc.text('Diagonal cells are self references and are intentionally neutral.', MARGIN, 33);
-
-  if (labels.length === 0) {
-    doc.setFillColor(...COLORS.paper);
-    doc.setDrawColor(...COLORS.line);
-    doc.roundedRect(MARGIN, 48, CONTENT_W, 24, 3, 3, 'FD');
-    doc.setTextColor(...COLORS.muted);
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(8.0);
-    doc.text('No similarity matrix data available yet.', PAGE_W / 2, 62, { align: 'center' });
-    return;
-  }
-
-  const labelWidth = 18;
-  const matrixLeft = MARGIN + labelWidth;
-  const matrixTop = 46;
-  const availableWidth = CONTENT_W - labelWidth;
-  const availableHeight = PAGE_H - matrixTop - 44;
-  const cellSize = Math.max(5.8, Math.min(12, availableWidth / labels.length, availableHeight / labels.length));
-  const gridTop = matrixTop + 10;
-  const rowLabelFont = cellSize > 9 ? 5.4 : 4.8;
-  const columnLabelFont = cellSize > 9 ? 5.2 : 4.6;
-  const scoreFont = cellSize > 9 ? 4.9 : 4.2;
-
-  labels.forEach((label, index) => {
-    const x = matrixLeft + index * cellSize + cellSize / 2;
-    doc.setTextColor(...COLORS.muted);
-    doc.setFont('courier', 'normal');
-    doc.setFontSize(columnLabelFont);
-    doc.text(truncate(doc, label, 22), x, matrixTop + 7.8, { angle: 90, align: 'center' });
-  });
-
-  labels.forEach((label, index) => {
-    const y = gridTop + index * cellSize + cellSize / 2 + 1.1;
-    doc.setTextColor(...COLORS.text);
-    doc.setFont('courier', 'normal');
-    doc.setFontSize(rowLabelFont);
-    doc.text(truncate(doc, label, labelWidth - 3), matrixLeft - 2, y, { align: 'right' });
-  });
-
-  labels.forEach((rowLabel, rowIndex) => {
-    labels.forEach((colLabel, colIndex) => {
-      const cellX = matrixLeft + colIndex * cellSize;
-      const cellY = gridTop + rowIndex * cellSize;
-      const isSelf = rowLabel === colLabel;
-      const comparison = isSelf ? null : findComparisonPair(comparisons, rowLabel, colLabel);
-      const score = comparison?.score;
-      const style = isSelf
-        ? { fill: COLORS.noComparison, text: COLORS.muted }
-        : getMatrixCellStyle(score);
-
-      doc.setFillColor(...style.fill);
-      doc.setDrawColor(...COLORS.line);
-      doc.setLineWidth(0.14);
-      doc.roundedRect(cellX, cellY, cellSize - 0.2, cellSize - 0.2, 0.6, 0.6, 'FD');
-
-      if (score !== undefined && score > 0) {
-        doc.setTextColor(...style.text);
-        doc.setFont('courier', 'bold');
-        doc.setFontSize(scoreFont);
-        doc.text(String(Math.round(score)), cellX + (cellSize - 0.2) / 2, cellY + (cellSize - 0.2) / 2 + 1.0, { align: 'center' });
-      }
-    });
-  });
-
-  drawMatrixLegend(doc, PAGE_H - 24);
-}
-
 function drawCollusionClusterPage(doc: jsPDF, assignment: AssignmentDetailsModel, comparisons: AssignmentComparisonItem[]): void {
   const threshold = 70;
   const graphData = buildCollusionGraphData(comparisons, threshold, { width: 150, height: 95 });
@@ -505,7 +371,7 @@ export function generatePDFReport(
   const totalBytes = submissions.reduce((sum, submission) => sum + submission.total_bytes, 0);
   const generatedAt = formatDateTime(now.toISOString());
   const fileName = `integrity-report-${slugify(assignment.course || 'course')}-${slugify(assignment.title || 'assignment')}-${now.toISOString().slice(0, 10)}.pdf`;
-  const summary = `This report condenses ${totalComparisons} comparison pair${totalComparisons === 1 ? '' : 's'} across ${submissions.length} submission${submissions.length === 1 ? '' : 's'}. The matrix on page 2 is the pairwise view and page 3 highlights collusion clusters. Peak similarity reaches ${formatPercentage(maxScore)}. Data footprint: ${totalLines.toLocaleString('en-CA')} lines across ${formatBytes(totalBytes)}.`;
+  const summary = `This report condenses ${totalComparisons} comparison pair${totalComparisons === 1 ? '' : 's'} across ${submissions.length} submission${submissions.length === 1 ? '' : 's'}. Page 2 highlights collusion clusters. Peak similarity reaches ${formatPercentage(maxScore)}. Data footprint: ${totalLines.toLocaleString('en-CA')} lines across ${formatBytes(totalBytes)}.`;
 
   doc.setProperties({
     title: `Academic Integrity Report - ${assignment.title}`,
@@ -541,9 +407,6 @@ export function generatePDFReport(
 
   y += 2;
   drawRiskSpreadPanel(doc, MARGIN, y, CONTENT_W, metrics, totalComparisons);
-
-  doc.addPage();
-  drawSimilarityMapPage(doc, assignment, comparisons);
 
   doc.addPage();
   drawCollusionClusterPage(doc, assignment, comparisons);

@@ -327,6 +327,20 @@ tr:hover td {
   animation: fadeIn 0.4s ease-out forwards;
 }
 
+@keyframes cc-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes cc-pulse {
+  0%, 100% { opacity: 0.45; }
+  50%       { opacity: 1; }
+}
+
+/* Applied to Loader2 icons and pulsing dots */
+.cc-spin  { animation: cc-spin  0.75s linear infinite; }
+.cc-pulse { animation: cc-pulse 1.4s  ease-in-out infinite; }
+
 .stagger-1 { animation-delay: 0.05s; }
 .stagger-2 { animation-delay: 0.1s; }
 .stagger-3 { animation-delay: 0.15s; }

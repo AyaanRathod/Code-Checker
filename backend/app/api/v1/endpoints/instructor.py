@@ -23,7 +23,7 @@ from app.models.stored_file import StoredFile
 from app.services.storage_service import storage_service
 from app.services.archival_service import effective_status, finalize_archive
 from app.schemas.assignment import AssignmentCreate, AssignmentResponse
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, aliased
 from app.services.encryption_service import encryption_service
 
 logger = logging.getLogger(__name__)
@@ -376,44 +376,54 @@ async def get_comparisons(
     )).scalars().first():
         raise HTTPException(status_code=404, detail="Assignment not found")
 
-    from app.models.repository_submission import RepositorySubmission
-    comparisons = (await db.execute(
-        select(ComparisonResult)
-        .options(
-            joinedload(ComparisonResult.source_submission),
-            joinedload(ComparisonResult.target_submission),
-            joinedload(ComparisonResult.target_repo_submission)
+    # Use a targeted column select instead of full ORM hydration + joinedload.
+    # This avoids loading match_metadata (large JSONB) and 3 sets of related ORM objects
+    # for every row — critical at 200+ submissions where there can be 20 000+ pairs.
+    TargetSub = aliased(Submission)
+
+    rows = (await db.execute(
+        select(
+            ComparisonResult.id,
+            ComparisonResult.target_submission_id,
+            ComparisonResult.target_repo_submission_id,
+            ComparisonResult.similarity_score,
+            ComparisonResult.comparison_type,
+            Submission.student_id_encrypted.label("src_encrypted"),
+            TargetSub.student_id_encrypted.label("tgt_encrypted"),
+            # Extract only repo_name from JSONB at the DB level — avoids transferring
+            # the entire match_metadata payload across the wire for every row.
+            ComparisonResult.match_metadata["repo_name"].as_string().label("repo_name"),
         )
+        .select_from(ComparisonResult)
         .join(Submission, ComparisonResult.source_submission_id == Submission.id)
+        .outerjoin(TargetSub, ComparisonResult.target_submission_id == TargetSub.id)
         .where(Submission.assignment_id == assignment_id)
         .order_by(ComparisonResult.similarity_score.desc())
-    )).scalars().unique().all()
+    )).all()
 
     response_data = []
-    for c in comparisons:
-        src_id = _safe_decrypt(c.source_submission.student_id_encrypted, "Unknown")
-        src_name = ""
+    for row in rows:
+        src_id = _safe_decrypt(row.src_encrypted, "Unknown")
         src_display = (src_id[:2] + "****" + src_id[-2:]) if len(src_id) > 4 else "Student_A"
-        comp_type = c.comparison_type or "internal"
+        comp_type = row.comparison_type or "internal"
 
-        if comp_type == "cross_repo" and c.target_repo_submission:
-            meta = c.match_metadata or {}
-            tgt_display = _repo_display(meta, c.target_repo_submission)
-            tgt_name = ""
+        if comp_type == "cross_repo" and row.target_repo_submission_id:
+            repo_name = row.repo_name or "Repository"
+            compact = str(row.target_repo_submission_id).replace("-", "")
+            tgt_display = f"[{repo_name}] REPO-{compact[:8].upper()}"
         else:
-            tgt_id = _safe_decrypt(c.target_submission.student_id_encrypted if c.target_submission else None, "Unknown")
-            tgt_name = ""
+            tgt_id = _safe_decrypt(row.tgt_encrypted, "Unknown")
             tgt_display = (tgt_id[:2] + "****" + tgt_id[-2:]) if len(tgt_id) > 4 else "Student_B"
 
         response_data.append({
-            "id": str(c.id),
+            "id": str(row.id),
             "source_student": src_display,
             "target_student": tgt_display,
-            "source_student_name": src_name,
-            "target_student_name": tgt_name,
-            "score": float(c.similarity_score),
+            "source_student_name": "",
+            "target_student_name": "",
+            "score": float(row.similarity_score),
             "comparison_type": comp_type,
-            "status": "High Risk" if c.similarity_score > 80 else "Review" if c.similarity_score > 60 else "Normal"
+            "status": "High Risk" if row.similarity_score > 80 else "Review" if row.similarity_score > 60 else "Normal"
         })
     return response_data
 

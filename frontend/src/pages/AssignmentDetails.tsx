@@ -13,6 +13,7 @@ import SimilarityMatrixTab from '../components/assignment-details/SimilarityMatr
 import CollusionClusterTab from '../components/assignment-details/CollusionClusterTab';
 import { useAssignmentDetailsData } from '../hooks/useAssignmentDetailsData';
 import type { AssignmentDetailsLocationState, TabView } from '../components/assignment-details/types';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const TAB_QUERY_KEY = 'tab';
 const TAB_STORAGE_PREFIX = 'assignmentDetailsActiveTab:';
@@ -98,7 +99,7 @@ const AssignmentDetails: React.FC = () => {
     navigate,
   });
 
-  if (loading) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Loading assignment details...</div>;
+  if (loading) return <LoadingSpinner label="Loading assignment details..." />;
   if (!assignment) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>Assignment not found.</div>;
 
   return (
@@ -237,14 +238,20 @@ const AssignmentDetails: React.FC = () => {
 };
 
 const TabPanel: React.FC<{ activeTab: TabView; target: TabView; children: React.ReactNode }> = ({ activeTab, target, children }) => {
-  if (activeTab !== target) return null;
+  const isActive = activeTab === target;
+  // Keep the component mounted once visited so expensive tabs (heatmap, clusters)
+  // don't recompute every time the user switches away and back.
+  const hasEverBeenActive = React.useRef(isActive);
+  if (isActive) hasEverBeenActive.current = true;
+
+  if (!hasEverBeenActive.current) return null;
+
   return (
     <motion.div
-      key={target}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.16, ease: 'easeOut' }}
-      style={{ minHeight: '100%' }}
+      style={{ minHeight: '100%', display: isActive ? undefined : 'none' }}
     >
       {children}
     </motion.div>

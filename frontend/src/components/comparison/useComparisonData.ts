@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import apiClient from '../../lib/apiClient';
 import { useToast } from '../ui/Toast';
 import type { AssignmentComparison, AssignmentSummary, ComparisonData, OtherAssignmentMatch } from './types';
@@ -25,6 +25,7 @@ export const useComparisonData = ({ comparisonId, reveal, navigate }: UseCompari
   const [otherAssignmentMatches, setOtherAssignmentMatches] = useState<OtherAssignmentMatch[]>([]);
   const [otherMatchesLoading, setOtherMatchesLoading] = useState(true);
   const [currentAssignmentId, setCurrentAssignmentId] = useState<string | null>(null);
+  const loadedComparisonId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const fetchComparison = async () => {
@@ -34,7 +35,11 @@ export const useComparisonData = ({ comparisonId, reveal, navigate }: UseCompari
         return;
       }
 
-      setLoading(true);
+      // Only show full-page loading on initial load or when navigating to a different comparison.
+      // Toggling reveal refetches silently so the page doesn't flash blank.
+      if (loadedComparisonId.current !== comparisonId) {
+        setLoading(true);
+      }
 
       try {
         const response = await apiClient.get(`/instructor/comparisons/${comparisonId}`, {
@@ -42,6 +47,7 @@ export const useComparisonData = ({ comparisonId, reveal, navigate }: UseCompari
           headers: { Authorization: `Bearer ${token}` },
         });
         setData(response.data as ComparisonData);
+        loadedComparisonId.current = comparisonId;
       } catch (error) {
         console.error(error);
         showToast('Failed to load comparison data.', 'error');

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GoogleLogin } from '@react-oauth/google';
-import { ArrowRight, Eye, EyeOff, CheckCircle, UserPlus } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, CheckCircle, Loader2, UserPlus } from 'lucide-react';
 import { registerApi, googleAuthApi } from '../api/authApi';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -299,7 +299,7 @@ const InstructorRegister: React.FC = () => {
             disabled={loading || passwordMismatch}
           >
             {loading ? 'Creating account...' : 'Create Account'}
-            {!loading && <ArrowRight size={18} />}
+            {loading ? <Loader2 size={18} className="cc-spin" /> : <ArrowRight size={18} />}
           </button>
         </form>
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import type { AssignmentLanguage } from '../../types/dashboard';
 import FileDropInput from './FileDropInput';
 
@@ -131,7 +131,8 @@ const RepositoryUploadModal: React.FC<RepositoryUploadModalProps> = ({
                 </div>
               )}
 
-              <button type="submit" className="btn btn-primary" disabled={uploading} style={{ marginTop: '0.5rem' }}>
+              <button type="submit" className="btn btn-primary" disabled={uploading} style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                {uploading && <Loader2 size={16} className="cc-spin" />}
                 {uploading ? 'Uploading & Processing...' : 'Upload Repository'}
               </button>
             </form>
