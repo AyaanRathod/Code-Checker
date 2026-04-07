@@ -4,6 +4,8 @@
 
 **Project:** Code Submission Similarity Checker for Academic Integrity
 
+**Live Link:** https://www.codesimilar.com/
+
 ---
 
 ## Table of Contents
