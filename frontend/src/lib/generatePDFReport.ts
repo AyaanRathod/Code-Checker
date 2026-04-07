@@ -30,8 +30,6 @@ const COLORS = {
   dangerBg: [254, 242, 242] as Color,
   low: [161, 98, 7] as Color,
   lowBg: [254, 252, 232] as Color,
-  noComparison: [226, 232, 240] as Color,
-  noComparisonBg: [248, 250, 252] as Color,
 };
 
 function slugify(value: string): string {
