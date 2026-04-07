@@ -197,10 +197,10 @@ export const computeAssignmentMetrics = (comparisons: AssignmentComparisonItem[]
     if (comparison.score > 80) highRisk++;
     else if (comparison.score > 60) reviews++;
 
-    if (comparison.score < 20) dist[0]++;
-    else if (comparison.score < 40) dist[1]++;
-    else if (comparison.score < 60) dist[2]++;
-    else if (comparison.score < 80) dist[3]++;
+    if (comparison.score <= 20) dist[0]++;
+    else if (comparison.score <= 40) dist[1]++;
+    else if (comparison.score <= 60) dist[2]++;
+    else if (comparison.score <= 80) dist[3]++;
     else dist[4]++;
   });
 
@@ -241,16 +241,5 @@ export const filterAndSortComparisons = (
 
 export const buildUniqueMatrixIds = (comparisons: AssignmentComparisonItem[]) =>
   Array.from(new Set(comparisons.flatMap((comparison) => [comparison.source_student, comparison.target_student]))).sort();
-
-export const findComparisonPair = (
-  comparisons: AssignmentComparisonItem[],
-  rowId: string,
-  colId: string
-) =>
-  comparisons.find(
-    (comparison) =>
-      (comparison.source_student === rowId && comparison.target_student === colId) ||
-      (comparison.source_student === colId && comparison.target_student === rowId)
-  ) || null;
 
 export const getSubmissionsCount = (submissions: AssignmentSubmissionItem[]) => submissions.length;
