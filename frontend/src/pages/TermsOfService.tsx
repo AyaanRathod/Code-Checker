@@ -136,7 +136,7 @@ const TermsOfService: React.FC = () => {
         <Section title="10. Contact">
           <p>
             For questions about these terms, contact the development team at{' '}
-            <a href="mailto:faculty@brocku.ca" style={{ color: 'var(--brand-red)' }}>faculty@brocku.ca</a>.
+            <a href="mailto:pp21qh@brocku.ca" style={{ color: 'var(--brand-red)' }}>pp21qh@brocku.ca</a>.
           </p>
         </Section>
 
